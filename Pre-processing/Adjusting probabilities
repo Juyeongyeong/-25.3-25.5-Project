@@ -1,0 +1,47 @@
+import pandas as pd
+import numpy as np
+from google.colab import files
+
+uploaded = files.upload()
+filename = list(uploaded.keys())[0]
+
+try:
+    df = pd.read_csv(filename, encoding="utf-8")
+except UnicodeDecodeError:
+    df = pd.read_csv(filename, encoding="cp949")
+
+job_to_category = {
+    "건설": "육체노동", "배달": "육체노동", "공장": "육체노동", "운동": "육체노동",
+    "청소": "육체노동", "용접": "육체노동", "기계": "육체노동", "전기": "육체노동",
+    "의사": "전문직", "간호사": "전문직", "약사": "전문직", "변호사": "전문직",
+    "프로그래머": "사무직", "개발자": "사무직", "디자이너": "사무직", "회계": "사무직",
+    "교사": "교육", "강사": "교육", "교수": "교육",
+    "요가": "건강", "트레이너": "건강", "운동처방사": "건강"
+}
+
+
+category_weights = {
+    "육체노동": [0.9, 0.1],  # 90% 건강, 10% 비건강
+    "전문직": [0.3, 0.7],  # 30% 건강, 70% 비건강
+    "사무직": [0.2, 0.8],  # 20% 건강, 80% 비건강
+    "교육": [0.4, 0.6],  # 40% 건강, 60% 비건강
+    "건강": [0.8, 0.2],  # 80% 건강, 20% 비건강
+}
+
+
+def classify_category(title):
+    for keyword, category in job_to_category.items():
+        if keyword in title:
+            return category
+    return "기타"
+
+
+df["Category Group"] = df["제목"].astype(str).apply(classify_category)
+df["Health Status"] = df["Category Group"].apply(lambda x: np.random.choice(["건강", "비건강"], p=category_weights.get(x, [0.5, 0.5])))
+
+output_filename = "job_health_status.csv"
+df.to_csv(output_filename, index=False, encoding="utf-8-sig")  # 한글 깨짐 방지
+
+files.download(output_filename)
+
+print(f"✅ 변환 완료! 저장된 파일: {output_filename}")
