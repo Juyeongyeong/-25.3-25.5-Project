@@ -1,0 +1,101 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, TimeoutException
+import time
+from datetime import datetime
+import pandas as pd
+
+def scroll_down(browser):
+    last_height = browser.execute_script("return document.body.scrollHeight")
+    while True:
+        browser.execute_script("window.scrollBy(0, 500);")
+        time.sleep(1)
+        new_height = browser.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break
+        last_height = new_height
+
+data_list = []
+seen_data = set()
+
+area_buttons = browser.find_elements(By.XPATH, '//*[@id="searchSimilar"]/span/a')
+total_areas = len(area_buttons)
+
+#입력 지역 내 구 변경
+for area_index in range(total_areas):
+    try:
+        area_buttons = browser.find_elements(By.XPATH, '//*[@id="searchSimilar"]/span/a')
+        scroll_down(browser)
+        time.sleep(1)
+        WebDriverWait(browser, 5).until(EC.element_to_be_clickable(area_buttons[area_index]))
+        browser.execute_script("arguments[0].click();", area_buttons[area_index])
+        time.sleep(3)
+        print(f"{area_index + 1}번째 지역 이동 완료하였습니다.")
+
+        page = 1
+        
+        while True:
+            try:
+                datas = browser.find_elements(By.XPATH, '//*[@id="rsList02"]/li')
+                #데이터 추출하기 
+                for i in datas:
+                    try:
+                        지역 = i.find_element(By.XPATH, './/span[2]').text.split('/')[0]
+                        구 = i.find_element(By.XPATH, './/span[2]').text.split('/')[1]
+                        제목 = i.find_element(By.XPATH, './/div[2]').text
+                        교육업체 = i.find_element(By.XPATH, './/span[1]').text.strip().split('│')[0].strip()
+                        사업체명 = i.find_element(By.XPATH, './/span[1]').text.strip().split(':')[-1]
+                        기간 = i.find_element(By.CLASS_NAME, 'info-date').text
+
+                        data_key = (지역, 구, 제목, 교육업체, 사업체명, 기간)
+                        if data_key not in seen_data:
+                            사업유형 = i.find_element(By.CLASS_NAME, 'icon-box').text.replace('\n', '')
+                            계획인원 = i.find_element(By.CLASS_NAME, 'icon-info').text.split()[1]
+                            참여인원 = i.find_element(By.CLASS_NAME, 'icon-info').text.split()[4]
+                            접수여부 = i.find_element(By.CLASS_NAME, 'badge-info').text
+
+                            data_list.append({
+                                '지역': 지역,
+                                '구': 구,
+                                '제목': 제목,
+                                '사업체명': 사업체명,
+                                '교육업체': 교육업체,
+                                '사업유형': 사업유형,
+                                '계획인원': 계획인원,
+                                '참여인원': 참여인원,
+                                '기간': 기간,
+                                '접수여부': 접수여부
+                            })
+                            seen_data.add(data_key)
+                    except Exception as e:
+                        print(f"데이터 추출 중 오류 발생: {e}")
+                #다음 페이지 이동
+                next_page_button = browser.find_elements(By.XPATH, f'//*[@id="paging02"]/a[contains(text(), "{page + 1}")]')
+                if next_page_button:
+                    scroll_down(browser)
+                    time.sleep(3)
+                    WebDriverWait(browser, 5).until(EC.element_to_be_clickable(next_page_button[0]))
+                    browser.execute_script("arguments[0].click();", next_page_button[0])
+                    time.sleep(5)
+                    page += 1
+                else:
+                    break
+                    
+            except Exception as e:
+                print(f"페이지 {page}에서 오류 발생: {e}")
+                break
+                
+    except Exception as e:
+        print(f"지역 {area_index + 1} 이동 중 오류 발생: {e}")
+        continue
+
+print(f"총 {len(data_list)}개의 일자리를 가져왔습니다.")
+for index, datas in enumerate(data_list, 1):
+    print(f"{index}번째 데이터: {datas['제목']} - {datas['사업체명']}")
+
+today = datetime.now().strftime('%y%m%d')
+df = pd.DataFrame(data_list)
+df.to_csv(f'{today}_일자리_수집_({keyword}).csv', encoding='utf-8-sig', index=False)
+df
