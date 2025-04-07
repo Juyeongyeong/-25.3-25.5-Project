@@ -1,1 +1,72 @@
+import requests
+import xmltodict
+import pandas as pd
+from datetime import datetime
+from time import sleep
+
+# 설정
+base_url = "https://www.work24.go.kr/cm/openApi/call/hr/callOpenApiSvcInfo313L01.do"
+auth_key = "e0b88af3-f2ca-4c42-b6fd-7f9ae90201dc"
+start_date = "20250101"
+end_date = "20250401"
+page_size = 20  # API 기준 최대 사이즈
+max_pages = 182  # 확인된 최대 페이지 수
+
+all_data = []
+
+# 페이지 반복
+for page in range(1, max_pages + 1):
+    params = {
+        "authKey": auth_key,
+        "returnType": "XML",
+        "outType": "1",
+        "pageNum": page,
+        "pageSize": page_size,
+        "srchTraStDt": start_date,
+        "srchTraEndDt": end_date,
+        "sort": "ASC",
+        "sortCol": "TOT_FXNUM"
+    }
+
+    response = requests.get(base_url, params=params)
+    if response.status_code != 200:
+        print(f"페이지 {page} 요청 실패: {response.status_code}")
+        continue
+
+    data_dict = xmltodict.parse(response.text)
+    scn_lists = data_dict['HRDNet']['srchList'].get('scn_list', [])
+
+    # scn_list가 1개일 때 dict로 반환되므로 리스트로 감싸기
+    if isinstance(scn_lists, dict):
+        scn_lists = [scn_lists]
+
+    for scn_item in scn_lists: #parsing
+        try:
+            title = scn_item['title']
+            sub_title = scn_item['subTitle']
+            address = scn_item['address']
+            tra_start_date = scn_item['traStartDate']
+            tra_end_date = scn_item['traEndDate']
+            train_target = scn_item.get('trainTarget', 'No Data')
+            start_dt = datetime.strptime(tra_start_date, "%Y-%m-%d")
+            end_dt = datetime.strptime(tra_end_date, "%Y-%m-%d")
+
+            all_data.append([
+                title, sub_title, address,
+                start_dt.strftime('%Y-%m-%d'),
+                end_dt.strftime('%Y-%m-%d'),
+                train_target
+            ])
+        except Exception as e:
+            print(f"데이터 파싱 오류 (페이지 {page}): {e}")
+            continue
+
+    sleep(0.5)  # 과도한 요청 방지
+
+# 데이터프레임으로 저장
+df = pd.DataFrame(all_data, columns=['Title', 'Sub Title', 'Address', 'Start Date', 'End Date', 'Train Target'])
+
+# csv 저장
+df.to_csv('API_Auto.csv', encoding = 'utf-8-sig')
+print(f"전체 페이지 엑셀 파일이 '{output_path}'로 저장되었습니다.")
 
