@@ -6,7 +6,7 @@ from time import sleep
 
 # 설정
 base_url = "https://www.work24.go.kr/cm/openApi/call/hr/callOpenApiSvcInfo313L01.do"
-auth_key = "e0b88af3-f2ca-4c42-b6fd-7f9ae90201dc"
+auth_key = "[발급]"
 start_date = "20250101"
 end_date = "20250401"
 page_size = 20  # API 기준 최대 사이즈
