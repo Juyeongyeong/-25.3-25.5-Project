@@ -3,7 +3,7 @@ from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
 import folium
 
-data= pd.read_csv('abcd.csv')
+data= pd.read_csv('위치데이터.csv')
 
 #csv파일의 열 이름 확인
 print("csv 열 이름:", data.columns)
