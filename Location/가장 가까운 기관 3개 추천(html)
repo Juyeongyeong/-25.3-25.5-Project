@@ -1,0 +1,88 @@
+import pandas as pd
+from geopy.geocoders import Nominatim
+from geopy.distance import geodesic
+import folium
+
+data= pd.read_csv('abcd.csv')
+
+#csv파일의 열 이름 확인
+print("csv 열 이름:", data.columns)
+
+#열 이름 설정
+latitude_col = data['위도'].astype(float)
+longitude_col = data['경도'].astype(float)
+name_col = '기관명'
+
+#사용자로부터 지명 입력받기
+place_name = input("현재 위치의 지명을 입력하세요:")
+
+#지오코딩으로 위도와 경도 찾기
+geolocator = Nominatim(user_agent="geo_finder") #지오코딩 API 사용자 지정
+
+location = geolocator.geocode(place_name)
+
+if location:
+  current_location = (location.latitude, location.longitude)
+  print(f"입력한 위치의 좌표: {current_location}")
+else:
+  print("입력한 지명을 찾을 수 없습니다. 더 자세한 주소를 입력하세요")
+  exit()
+
+current_lat = float(location.latitude)
+current_lon = float(location.longitude)
+
+# 각 장소와의 거리 계산 함수
+def calculate_distance(row):
+    place_location = (row['위도'], row['경도'])
+    return geodesic(current_location, place_location).kilometers
+
+# 거리 계산 및 데이터프레임에 추가
+data['거리(km)'] = data.apply(calculate_distance, axis=1)
+
+# 가장 가까운 장소 3개 선택
+closest_places = data.nsmallest(3, '거리(km)')
+
+# 지도 생성
+mymap = folium.Map(location=current_location, zoom_start=15)
+
+# 현재 위치가 가장 가까운 장소 중 하나인지 확인
+is_current_location_closest = any(
+    (abs(current_lat - row['위도']) < 1e-5) and (abs(current_lon - row['경도']) < 1e-5)
+    for _, row in closest_places.iterrows()
+)
+
+# 현재 위치 마커 추가
+folium.Marker(
+    current_location,
+    popup='현재 위치',
+    icon=folium.Icon(color='blue' if is_current_location_closest else 'lightred',icon='cloud', prefix='fa')
+).add_to(mymap)
+mymap
+
+# 나머지 장소 마커 추가 (연한 남색)
+other_places = data[~data.index.isin(closest_places.index)]
+for _, row in other_places.iterrows():
+    folium.Marker(
+        [row['위도'], row['경도']],
+        popup = folium.Popup(f'<div style="white-space: nowrap;"><a href="https://map.naver.com/v5/search/{row["기관명"]}" target="_blank">{row["기관명"]}</a></div>',max_width=300),
+        icon=folium.Icon(color='lightblue')
+    ).add_to(mymap)
+mymap
+
+# 가장 가까운 장소 마커 추가 (진한 남색)
+for _, row in closest_places.iterrows():
+    folium.Marker(
+        [row['위도'], row['경도']],
+        popup = folium.Popup(f'<div style="white-space: nowrap;"><a href="https://map.naver.com/v5/search/{row["기관명"]}" target="_blank">{row["기관명"]}</a></div>',max_width=300),
+        icon=folium.Icon(color='darkblue')
+    ).add_to(mymap)
+
+mymap
+
+#지도 표시
+mymap.save('map.html')
+print("지도 저장 완료")
+
+#지도 html로 저장
+mymap.save('map.html')
+print("지도가 파일로 저장되었습니다.")
