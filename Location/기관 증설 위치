@@ -1,0 +1,102 @@
+## 필요지수 구하기
+import json
+import folium
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+
+# 1. 데이터 로드 및 전처리
+# 기관 데이터
+agencies_df = pd.read_csv('abcd.csv', low_memory=False)
+seoul_agencies = agencies_df.query('특별시도 == "서울특별시"')
+
+# 구별 기관 수 집계
+seoul_agency_count = seoul_agencies.groupby('지역').size().to_frame().reset_index()
+seoul_agency_count.columns = ['구', '기관수']
+
+#  "서울특별시 " 제거하여 병합 문제 해결
+seoul_agency_count['구'] = seoul_agency_count['구'].str.replace('서울특별시 ', '', regex=True)
+
+# 인구밀도 데이터
+population_df = pd.read_csv('인구밀도.csv')
+population_df = population_df.rename(columns={'지역': '구', '인구': '인구수', '인구밀도': '인구밀도'})[['구', '인구밀도']]
+
+# 기초연금 데이터
+pension_df = pd.read_csv('기초연금.csv')
+pension_df = pension_df.rename(columns={'시군구': '구'})
+pension_df['합계'] = pension_df['합계'].str.replace(',', '').astype(int)
+
+# 2. 데이터 병합
+merged_df = pd.merge(seoul_agency_count, population_df, on='구', how='outer')
+
+analysis_df = pd.merge(
+    merged_df,
+    pension_df[['구', '합계']].rename(columns={'합계': '기초연금수급자'}),
+    on='구',
+    how='outer'
+)
+
+# 3. 데이터 정규화
+numeric_cols = ['기관수', '인구밀도', '기초연금수급자']
+analysis_df[numeric_cols] = analysis_df[numeric_cols].fillna(0)
+
+scaler = MinMaxScaler()
+analysis_df[numeric_cols] = scaler.fit_transform(analysis_df[numeric_cols])
+
+# 4. 가중치 조정 (2027년 기준 반영) (공식은 저희가 입력한거고 기관수 가중치를 없애도, 더 줘도 무관합니당)
+analysis_df['필요지수'] = (
+    analysis_df['기초연금수급자'] * 0.60 +  # 공익형 60%
+    analysis_df['인구밀도'] * 0.40 -         # 사회서비스형+민간형 40%
+    analysis_df['기관수'] * 0.3             # 기관수가 많을수록 영향은 있지만 약하게
+)
+
+# 5. 최종 결과 출력
+print("🚀 최종 필요 지수 상위 5개 구:")
+result = analysis_df.sort_values('필요지수', ascending=False).head(5)[['구', '필요지수', '기관수']]
+print(result.round(4))
+
+
+# 4. 지도 시각화 개선
+# 서울시 구별 경계 데이터
+geo_path = '서울시 구별 경계 데이터.json'
+geo_json = json.load(open(geo_path, encoding='utf-8'))
+
+# 기존 운영기관 위치 데이터
+df = pd.read_csv('abcd.csv', low_memory=False)
+data = df.query('특별시도 == "서울특별시"')
+
+# 기본 지도 설정
+f = folium.Figure(width=700, height=500)
+m = folium.Map(location=[37.566535, 126.9779692], zoom_start=11).add_to(f)
+
+# 필요지수를 기준으로 Choropleth 생성
+choropleth = folium.Choropleth(
+    geo_data=geo_json,
+    data=analysis_df,
+    columns=['구', '필요지수'],
+    key_on='feature.properties.name',
+    fill_color='YlOrRd',
+    fill_opacity=0.7,
+    line_opacity=0.7,
+    legend_name='서울시 구별 국민취업제도 필요지수'
+).add_to(m)
+
+# 구별 이름 툴팁 추가 ( 마우스 올리면 글씨 나타나는 기능 )
+choropleth.geojson.add_child(
+    folium.features.GeoJsonTooltip(
+        fields=['name'], 
+        aliases=['구 이름:'],
+        sticky=True
+    )
+)
+
+# 기존 운영기관 위치 마커 추가 : 지도 출력전에 넣으면 됨
+for _, row in data.iterrows():
+    folium.Marker(
+        location=[row['위도'], row['경도']],
+        popup=row['기관명'],
+        icon=folium.Icon(color='blue', icon='info-sign')
+    ).add_to(m)
+
+# 지도 출력
+m
