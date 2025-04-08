@@ -1,0 +1,103 @@
+### 교육 서비스
+import pandas as pd
+import re
+
+data = pd.read_csv('eeee.csv')
+
+keywords = input("검색할 키워드를 입력하세요 (예: 전기, 자동차, 품질): ")
+keywords = [k.strip() for k in re.split('[, ]+', keywords) if k.strip()] 
+
+data_filtered_by_keywords = data[data['제목'].apply(lambda x: any(keyword in x for keyword in keywords))]
+region = input("\n원하는 지역을 입력하세요 (예: 서울, 강남구, 대전): ").strip()
+data_filtered_by_region = data[
+    data[['도, 특별시, 광역시', '시, 군', '구']].apply(lambda row: region in row.values, axis=1)]
+
+final_filtered_data = data_filtered_by_keywords.merge(
+    data_filtered_by_region, how='inner')
+
+if not final_filtered_data.empty:
+    print("\n🔹 최종 추천 교육 목록 🔹")
+    print(final_filtered_data[['도, 특별시, 광역시', '시, 군', '구', '제목', '교육업체', '시작일자', '종료일자', '교육유형']])
+    
+    output_file = "추천_교육_목록.xlsx"
+    final_filtered_data.to_excel(output_file, index=False, engine='openpyxl')
+    print(f"\n결과가 '{output_file}' 파일로 저장되었습니다.")
+else:
+    print("\n입력한 키워드와 지역 조건을 모두 만족하는 교육이 없습니다.")
+
+##########################################################################################
+
+### 일자리 서비스
+import pandas as pd
+import re
+
+data = pd.read_csv('ddddd.csv')
+
+he_status = input("건강 상태를 입력하세요 (건강/비건강): ").strip()
+
+if he_status == "비건강":
+    data_filtered = data[data['건강상태'] == '비건강']
+    
+    selected_he = input("불편한 부위를 입력하세요 (예: 팔, 다리 허리): ")
+    selected_he_list = [x.strip() for x in re.split('[, ]+', selected_he) if x.strip()]
+
+    allowed_parts = ['팔', '다리', '허리']
+    allowed_parts = [part for part in allowed_parts if part not in selected_he_list]
+    
+    data_filtered = data_filtered[
+        (data_filtered['불편한 부위'].isin(allowed_parts)) &
+        (data_filtered['불편한 부위'] != '')]
+    
+    if data_filtered.empty:
+        print(f"선택한 '{', '.join(selected_he_list)}' 부위를 제외한 일자리가 없습니다.")
+        exit()
+elif he_status == "건강":
+    data_filtered = data
+else:
+    print("올바른 값을 입력하세요.")
+    exit()
+
+selected_gender = input("성별을 선택하세요 (남자/여자): ").strip()
+
+if selected_gender in ["남자", "여자"]:
+    data_filtered = data_filtered[(data_filtered['성별'] == selected_gender) | (data_filtered['성별'] == '무관')]
+else:
+    print("올바른 값을 입력하세요.")
+    exit()
+
+try:
+    age = int(input("나이를 입력하세요: "))
+    data_filtered = data_filtered[(data_filtered['최소나이'] <= age) & (data_filtered['최대나이'] >= age)]
+
+    if data_filtered.empty:
+        print("입력한 나이에 해당하는 일자리가 없습니다.")
+        exit()
+except ValueError:
+    print("유효한 숫자를 입력하세요.")
+    exit()
+
+keywords = input("검색할 키워드를 입력하세요 (예: 음식, 어린이, 지역): ")
+keywords = [k.strip() for k in re.split('[, ]+', keywords) if k.strip()] 
+
+data_filtered = data_filtered[data_filtered['제목'].apply(lambda x: any(keyword in x for keyword in keywords))]
+
+region = input("\n원하는 지역을 입력하세요 (예: 서울, 강남구, 대전): ").strip()
+
+data_filtered = data_filtered[
+    data_filtered[['특별시도', '시군', '구']].apply(
+        lambda row: region in row.values, axis=1
+    )
+]
+
+data_filtered = data_filtered[data_filtered['참여인원'] < data_filtered['계획인원']]
+
+if not data_filtered.empty:
+    print("\n🔹 최종 추천 일자리 목록 🔹")
+    print(data_filtered[['특별시도', '시군', '구', '제목', '사업체명','교육업체', '사업유형', '건강상태', '불편한 부위', '성별', '최소나이', '최대나이', '참여인원', '계획인원']])
+    
+    # 엑셀 파일로 저장
+    output_file = "추천_일자리_목록.xlsx"
+    data_filtered.to_excel(output_file, index=False, engine='openpyxl')
+    print(f"\n결과가 '{output_file}' 파일로 저장되었습니다.")
+else:
+    print("\n입력한 모든 조건에 해당하는 일자리가 없습니다.")
