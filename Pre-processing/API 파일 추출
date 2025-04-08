@@ -1,0 +1,23 @@
+####API 파일 추출하기 
+###https://web.postman.co/workspace/bcf0109b-54f1-4870-8e34-2158a6c2341d/request/create?requestId=b2106c4a-b72d-4716-8844-7f1ee88a93b6
+import xmltodict
+import pandas as pd
+from datetime import datetime
+import xml.etree.ElementTree as ET
+tree = ET.parse('response.xml')
+tree
+
+root = tree.getroot() # 해당 트리의 root를 반환
+print(type(tree))
+print(type(root))
+
+##tag와 attribute를 출력하기 
+print(root.tag)
+print(root.attrib) 
+
+#자식노드 조회하기 
+for child in root:
+    print(child.tag, child.attrib)
+
+for child in root[0]:
+    print(child.tag, child.text)
