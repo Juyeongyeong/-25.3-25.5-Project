@@ -1,0 +1,125 @@
+import pandas as pd
+import streamlit as st
+from geopy.geocoders import Nominatim
+from geopy.distance import geodesic
+import folium
+from streamlit_folium import folium_static
+import math
+from geopy.exc import GeocoderTimedOut
+
+# CSV 파일 불러오기
+data = pd.read_csv("gggc.csv", encoding="euc-kr") #시도군
+data1 = pd.read_csv("abcd.csv", encoding="utf-8-sig")
+
+# 삭제할 열 이름 지정
+columns_to_delete = ['Unnamed: 3']  # 예시로 '열1'과 '열2'를 삭제
+
+# 특정 열 삭제
+data.drop(columns=columns_to_delete, inplace=False)
+
+# 딕셔너리로 변환할 빈 dict 생성
+location_dict = {}
+
+# 데이터프레임을 딕셔너리 형태로 변환
+for _, row in data.iterrows():
+    special_city = row['특별시도']
+    district = row['구']
+    dong = row['동']
+
+    # 특별시도 키가 존재하지 않으면 새로 생성
+    if special_city not in location_dict:
+        location_dict[special_city] = {}
+
+    # 구 키가 존재하지 않으면 새로 생성
+    if district not in location_dict[special_city]:
+        location_dict[special_city][district] = []
+
+    # '동'이 nan이 아니면 동을 추가
+    if pd.notna(dong):
+        location_dict[special_city][district].append(dong)
+
+st.title("위치 기반 기관 추천")
+
+# 시도 선택
+selected_sido = st.selectbox("특별시, 도를 선택하세요:", list(location_dict.keys()))
+
+# 시군 선택
+if selected_sido:
+    selected_gu = st.selectbox("시, 군을 선택하세요:", list(location_dict[selected_sido].keys()))
+else:
+    selected_gu = None
+
+# 동 선택
+if selected_sido and selected_gu:
+    selected_dong = st.selectbox("동을 선택하세요:", location_dict[selected_sido][selected_gu])
+else:
+    selected_dong = None
+
+# 주소 생성
+parts = [selected_sido, selected_gu, selected_dong]
+valid_parts = [str(part) for part in parts if pd.notnull(part) and part is not None and str(part).lower() != "nan"]
+address = " ".join(valid_parts)
+
+# 세 값이 모두 존재할 때만 geocode 실행
+
+# 세 값이 모두 선택되었을 때만 geocode 실행
+if selected_sido and selected_gu and selected_dong:
+    geolocator = Nominatim(user_agent="your_app_name")
+    try:
+        location = geolocator.geocode(address)
+        st.success(f"📍 주소: {address}")
+        st.write(f"위도: {location.latitude}, 경도: {location.longitude}")
+    except Exception as e:
+        st.error(f"지오코딩 중 오류가 발생했습니다: {e}")
+
+
+current_location = (location.latitude, location.longitude)
+
+# 각 장소와의 거리 계산 함수
+def calculate_distance(row):
+    place_location = (row['위도'], row['경도'])
+    return geodesic(current_location, place_location).kilometers
+
+# 거리 계산 및 데이터프레임에 추가
+data1['거리(km)'] = data1.apply(calculate_distance, axis=1)
+
+# 가장 가까운 장소 3개 선택
+closest_places = data1.nsmallest(3, '거리(km)')
+
+# 지도 생성
+mymap = folium.Map(location=current_location, zoom_start=15)
+
+# 현재 위치가 가장 가까운 장소 중 하나인지 확인
+is_current_location_closest = any(
+    (abs(current_location[0] - row['위도']) < 1e-5) and (abs(current_location[1] - row['경도']) < 1e-5)
+    for _, row in closest_places.iterrows()
+)
+
+# 현재 위치 마커 추가
+folium.Marker(
+    current_location,
+    popup='현재 위치',
+    icon=folium.Icon(color='blue' if is_current_location_closest else 'lightred', icon='cloud', prefix='fa')
+).add_to(mymap)
+
+# 나머지 장소 마커 추가 (연한 남색)
+other_places = data1[~data1.index.isin(closest_places.index)]
+for _, row in other_places.iterrows():
+    folium.Marker(
+        [row['위도'], row['경도']],
+        popup=folium.Popup(f'<div style="white-space: nowrap;"><a href="https://map.naver.com/v5/search/{row["기관명"]}" target="_blank">{row["기관명"]}</a></div>', max_width=300),
+        icon=folium.Icon(color='lightblue')
+    ).add_to(mymap)
+
+# 가장 가까운 장소 마커 추가 (진한 남색)
+for _, row in closest_places.iterrows():
+    folium.Marker(
+        [row['위도'], row['경도']],
+        popup=folium.Popup(f'<div style="white-space: nowrap;"><a href="https://map.naver.com/v5/search/{row["기관명"]}" target="_blank">{row["기관명"]}</a></div>', max_width=300),
+        icon=folium.Icon(color='darkblue')
+    ).add_to(mymap)
+
+# 지도 표시
+folium_static(mymap)
+
+
