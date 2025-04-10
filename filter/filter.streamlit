@@ -1,0 +1,99 @@
+import streamlit as st
+import time
+from streamlit_autorefresh import st_autorefresh
+import pandas as pd
+import re
+
+def go_to(page_name):
+    st.session_state.page = page_name
+    st.rerun()
+
+# 상태 초기화
+if "page" not in st.session_state:
+    st.session_state.page = "main"
+#streamlit
+    st.session_state.start_time = time.time()
+
+# 자동 새로고침: 1초마다 계속 새로고침
+if st.session_state.page == "main":
+    st_autorefresh(interval=1000, key="auto_refresh")  # limit 제거
+    st.title("좋은 아침입니다, ooo님!")
+    st.write("오늘 날씨는 미세먼지가 많으니 유의하세요!🤧")
+
+    elapsed = time.time() - st.session_state.start_time
+    #st.write(f"경과 시간: {elapsed:.2f}초")  # 디버깅용
+
+    if elapsed >= 7:
+        st.session_state.page = "next"
+        st.rerun()  # 또는 st.experimental_rerun()
+
+elif st.session_state.page == "next":
+    st.title("🔎오늘은 무엇이 궁금하세요?")
+    if st.button("🧑🏼‍🌾우리 동네 일자리"):
+        go_to("일자리")
+
+    elif st.button("🧑🏼‍🏫우리 동네 교육"):
+        go_to("교육")
+
+    elif st.button("🏡우리 동네 이야기"):
+        go_to("이야기")
+
+if st.session_state.page == "일자리":
+    if st.button("◀️돌아가기"):
+        go_to("next")
+    st.title("👩‍🌾우리 동네 일자리")
+    st.write("우리 동네 일자리 / 일자리 후기")
+    name = st.text_input("이름을 입력하세요")
+    age = st.number_input("나이", min_value=65, max_value=100)
+    #interests = st.multiselect("관심 분야", ["건강", "요리", "여행", "취미", "일자리"])
+    st.write(f"입력된 이름: {name}, 나이: {age}")
+
+    # 데이터 로딩
+    data = pd.read_csv('dddd.csv')
+    st.title("🔍 키워드 기반 일자리 검색")
+    # 사용자 키워드 입력
+    user_input = st.text_input("키워드를 입력하세요 (예: 실습, 관리, 돌봄)")
+    # 체크박스 입력
+    is_checked = st.checkbox('아픈 곳이 있어요')
+    # 필터링된 데이터 초기값 설정
+    filtered_data = data.copy()
+    # 키워드 필터링
+
+    if user_input:
+        keywords = [kw.strip() for kw in user_input.split(',') if kw.strip()]
+        filtered_data = filtered_data[filtered_data['제목'].apply(lambda x: any(keyword in x for keyword in keywords))]
+
+    # 건강상태 필터링
+    if is_checked:
+        filtered_data = filtered_data[filtered_data['건강상태'] == '비건강']
+
+        user_input2 = st.text_input("어디가 아프신가요? (예: 허리, 건강, 다리)")
+        if user_input2:
+            keywords1 = [kw.strip() for kw in user_input1.split(',') if kw.strip()]
+            filtered_data = filtered_data[
+                filtered_data['제목'].apply(lambda x: any(keyword1 in x for keyword1 in keywords1))]
+        else:
+            if filtered_data.empty:
+                st.info("")
+            else:
+                st.dataframe(filtered_data)
+    # 최종 출력
+    st.write("### 📄 검색 결과:")
+    if filtered_data.empty:
+        st.info("❗검색 조건에 해당하는 결과가 없습니다.")
+    else:
+        st.dataframe(filtered_data)
+
+
+elif st.session_state.page == "교육":
+    if st.button("◀️돌아가기"):
+        go_to("next")
+    st.title("🧑🏼‍🏫우리 동네 교육")
+    st.write("우리 동네 교육 추천 / 수강 후기")
+
+elif st.session_state.page == "이야기":
+    if st.button("◀️돌아가기"):
+        go_to("next")
+    st.title("🏡우리 동네 이야기")
+    st.write("우리 동네 장인/ 우리 동네 새소식")
+
