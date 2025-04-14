@@ -1,0 +1,104 @@
+#SQL을 이용한 데이터 전처리 실습
+#계획수립 > 데이터 수집 > 데이터처리 > 데이터분석 > 결론도출
+#데이터처리 : 결측 데이터 확인, 결측 데이터 제거, 최빈값 채우기, 평균값 대체, 명목형 데이터를 수치형으로 변환
+
+SELECT passengerid, pclass, age, embarked
+FROM titanic
+WHERE survived = 1;
+
+#백업 테이블 생성 
+CREATE TABLE survived(
+	passendgerid INT PRIMARY KEY
+    , pclass INT NOT NULL
+    , age INT
+    , embarked CHAR(1));
+DESC survived;
+
+INSERT INTO survived 
+SELECT passengerid, pclass, age, embarked
+FROM titanic
+WHERE survived = 1;
+
+#데이터 확인 
+SELECT * 
+FROM survived;
+
+#1. 결측 데이터 확인
+SELECT count(*), count(passendgerid), count(pclass), count(age),count(*) -count(embarked)
+FROM survived;
+
+#(1) 결측 데이터를 제거한 후 출력하기
+SELECT *
+FROM survived
+WHERE age IS NOT NULL and embarked IS NOT NULL; 
+
+# 실제로는 csv파일이 아닌 DB의 형식으로 출력
+#xlsx : 파일용량이 작음, 압축저장, 입출력 속도가 느리다(그래서 파이썬에서 csv를 씀)
+#csv : 파일용량 큼, 비압축저 
+
+#2. embarked 컬럼에서 최빈값을 확인 후 데이터 채우기 
+#(1) 카테고리 종류 확인 
+SELECT DISTINCT embarked
+FROM survived;
+
+#(2) 카테고리별 데이터의 개수 확인 > 최빈값 확인 
+SELECT count(embarked) FROM survived WHERE embarked = 'S';
+SELECT count(embarked) FROM survived WHERE embarked = 'C';
+SELECT count(embarked) FROM survived WHERE embarked = 'Q';
+
+SELECT embarked, count(*) as countem
+FROM survived
+GROUP BY embarked
+ORDER BY countem DESC;
+
+#(3)최빈값은 S값으로 채우기 : IFNULL(embarked, 'S')
+SELECT passendgerid, pclass, age, IFNULL(embarked, 'S') AS embarked
+FROM survived;
+
+#(4)최빈값 업데이트로 채우기 - 원본 데이터 변경
+UPDATE survived SET embarked = 'S' WHERE embarked IS NULL LIMIT 2;
+
+SELECT *
+FROM survived;
+
+#3. age 컬럼에서 평균값 확인 후 데이터 채우기 
+#(1) age 컬럼의 평균(반올림하여 정수)채우기
+SELECT round(avg(age),2) 
+FROM survived;
+
+#(2) 평균값을 채워서 출력
+SELECT passendgerid,pclass, IFNULL(age, 28) as age, embarked
+FROM survived;
+#DESC survived;
+
+#(3) 결측 데이터에 평균값을 채워서 저장
+UPDATE survived SET age = 28 WHERE age IS NULL LIMIT 100;
+
+#4. embarked 컬럼에서 명목형 데이터 > 수치형 데이터 
+SELECT passendgerid, pclass, age,
+	CASE embarked
+		WHEN 'S' THEN 1
+        WHEN 'Q' THEN 2
+	ELSE 3
+    END AS embarked
+FROM survived;
+
+#5. 승선위치 S C Q 순서대로 데이터를 정렬하여 출력 (원하는 정렬 만들기)
+SELECT passendgerid, pclass, age, embarked,
+	CASE embarked
+		WHEN 'S' THEN 1
+        WHEN 'C' THEN 2
+	ELSE 3
+    END AS num
+FROM survived
+ORDER BY num ASC;
+
+#(1) 다른 방식
+SELECT passendgerid, pclass, age, embarked
+FROM survived
+ORDER BY
+	CASE embarked
+		WHEN 'S' THEN 1
+        WHEN 'C' THEN 2
+	ELSE 3
+    END ASC;
