@@ -1,0 +1,29 @@
+import os
+import pandas as pd
+
+dirpath = os.path.expanduser("~/Downloads/일자리")
+if not dirpath.endswith('/'):
+    dirpath += '/'
+
+files = os.listdir(dirpath)
+print("📂 파일 목록:", files)
+
+# ✅ 여기서 먼저 빈 DataFrame 생성!
+raw = pd.DataFrame()
+
+for file in files:
+    fpath = dirpath + file
+    print(f"📄 현재 처리 중인 파일: {fpath}")
+
+    if os.path.exists(fpath):
+        try:
+            temp = pd.read_csv(fpath)
+        except UnicodeDecodeError:
+            temp = pd.read_csv(fpath, encoding='cp949')
+        
+        raw = pd.concat([raw, temp], ignore_index=True)
+    else:
+        print(f"⚠️ 파일이 존재하지 않습니다: {fpath}")
+
+print("✅ 병합 완료!")
+raw.to_csv('병합완료.csv', encoding = 'utf-8-sig')
