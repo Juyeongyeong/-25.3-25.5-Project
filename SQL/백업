@@ -1,0 +1,67 @@
+# TRIGGER
+# 간단한 백업을 할때 많이 사용
+# 특정 테이블을 감시하고 있다가 설정한 조건에 대한 쿼리가 실행되면
+# 미리 설정해 놓은 쿼리가 자동으로 실행되도록 하는 방법
+
+# CREATE TRIGGER tr_name
+# {BEFORE|AFTER}{INSERT|UPDATE|DELETE}
+# ON table FOR EACH ROW
+# BEGINE
+# 	query(INSERT INTO);
+# END;
+
+# 백업 : 서버대 서버로 백업 : 주기(1주일,1개월)
+# 백업 : TRIGGER 백업 : 주기(1일)
+
+CREATE DATABASE tr;
+USE tr;
+
+# chat 테이블 생성
+CREATE TABLE chat(
+	chat_id INT PRIMARY KEY AUTO_INCREMENT
+    , msg VARCHAR(100) NOT NULL
+)
+
+# backup 테이블 생성
+CREATE TABLE chat_bak(
+	chat_bak_id INT PRIMARY KEY AUTO_INCREMENT
+    , chat_id INT UNIQUE NOT NULL
+    , msg VARCHAR(100) NOT NULL
+    , bak_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER chat_tr
+BEFORE DELETE ON chat
+FOR EACH ROW
+BEGIN
+	INSERT INTO chat_bak(chat_id, msg)
+    VALUES (old.chat_id, old.msg);
+END;
+
+
+DELIMITER $$
+CREATE TRIGGER chat_tr
+BEFORE DELETE ON chat
+FOR EACH ROW
+BEGIN
+	INSERT INTO chat_bak(chat_id, msg)
+    VALUES (old.chat_id, old.msg);
+END;
+$$
+
+# 트리거 목록 확인
+SHOW TRIGGERS;
+
+# chat 테이블 데이터 추가
+INSERT INTO chat(msg)
+VALUES ('hello mysql'), ('hello database'), ('goodbye mysql');
+SELECT * FROM chat;
+
+# 삭제 데이터 복원
+# 쿼리 실행결과를 테이블에 저장
+INSERT INTO chat (chat_id, msg)
+SELECT chat_id, msg
+FROM chat_bak;
+
+# 복원 확인
+SELECT * FROM chat;
