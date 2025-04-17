@@ -1,0 +1,36 @@
+# INDEX
+# 테이블의 컬럼을 기준으로 설정 가능
+# 장점 : READ의 속도를 빠르게 해줌
+# 단점 : CREATE,UPDATE, DELETE 속도가 느려짐, 저장공간 10% 정도 더 사용
+# 효율적인 사용방법 : WHERE 구문에서 자주 사용되는 컬럼을 INDEX로 설정
+
+# INDEX 종류
+# - 클러스터형 인덱스 : PRIMARY KEY 설정된 컬럼이 적용 : 속도가 빨라지는 것보다 데이터 정렬을 위해 사용
+# - 보조 인덱스 : 일부 데이터만 INDEX로 사용하여 속도가 빨라지게 하는 인덱스
+
+USE bda;
+SELECT * FROM salaries;
+SELECT COUNT(*) FROM salaries;
+
+# 인덱스 목록 확인 
+SHOW INDEX FROM salaries;
+
+# 인덱스 사용 X : 0.392 sec
+SELECT * FROM salaries WHERE to_date < '1986-01-01';
+
+# 인덱스 생성 
+CREATE INDEX tdate ON salaries (to_date);
+# 인덱스 목록 확인 
+SHOW INDEX FROM salaries;
+
+# 인덱스 사용 O : 0.0087 sec
+SELECT * FROM salaries WHERE to_date < '1986-01-01';
+
+# 실행계획 확인
+# - 쿼리 실행 전에 쿼리가 인덱스를 사용하는지 확인
+EXPLAIN
+SELECT * FROM salaries WHERE to_date < '1986-01-01';
+
+# credit.sql restore
+USE bda;
+SELECT * FROM credit;
