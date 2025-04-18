@@ -1,0 +1,225 @@
+USE bda;
+SELECT * FROM credit; 
+# 문제 1 : SELECT, FROM, AS 사용
+# 문제 2 : 20대 고객 중에서 소득이 가장 많은 5명의 고객을 소득이 많은 순으로 정렬하여 출력하세요
+SELECT id AS user_id, income, age, ethnicity, balance
+FROM credit
+WHERE age BETWEEN 20 and 29
+ORDER BY income DESC
+LIMIT 5;
+
+# 문제 3 : 아시아인(Asian)과 흑인(African American)중에서 소득이 50이상인 데이터를 출력하세요.
+SELECT id AS user_id, income, age, ethnicity, balance
+FROM credit
+WHERE ethnicity IN('Asian', 'African American') and income >= 50;
+
+# 문제 4 : 연령대가 20대, 40대까지 고객중에 소득이 많은 고객의 11위 ~ 15위까지의 데이터를 출력하세요.
+SELECT id AS user_id, income, age, ethnicity, balance
+FROM credit
+WHERE TRUNCATE(age, -1) IN(20, 40)
+LIMIT 10, 5;
+
+WITH ranked_credit AS (SELECT
+	id AS user_id, income, age, ethnicity, balance, RANK() OVER(ORDER BY income DESC) AS income_rank
+    FROM credit
+    WHERE (age BETWEEN 20 and 29) or age BETWEEN 40 AND 49)
+SELECT user_id, income, age, ethnicity, balance
+FROM ranked_credit
+WHERE income_rank BETWEEN 11 AND 15
+LIMIT 5;
+
+#서브쿼리를 설정했을 때
+SELECT user_id, income, age, ethnicity, balance, income_rank
+FROM (SELECT
+		id AS user_id, income, age, ethnicity, balance, RANK() OVER(ORDER BY income DESC) AS income_rank
+	FROM credit
+    WHERE age BETWEEN 20 AND 50) AS ranked
+WHERE income_rank > 10
+LIMIT 5;
+
+#문제 5 : 은행 고객의 평균소득(income), 평균나이(age), 총예금잔고(balance)를 출력하세요.
+#출력컬럼 : avg_income, avg_age, total_balance
+SELECT round(avg(income),2) AS avg_income, round(avg(age),2) AS avg_age, sum(balance) AS total_balance
+FROM credit;
+
+#문제 6 : 아래의 기준에 따라 교육등급 데이터를 A, B, C 로 출력하는 컬럼을 추가하여 데이터를 출력하세요.
+#출력컬럼 : id, income, education, grade(새로운 등급)
+
+SELECT id, income, education,
+	CASE 
+     WHEN education BETWEEN 16 and 20 THEN 'A'
+     WHEN education BETWEEN 11 and 15 THEN 'B'
+     WHEN education BETWEEN 5 and 10 THEN 'C'
+	ELSE ''
+    END AS grade
+FROM credit;
+
+#연습 문제 7 : 신용점수(rating) 1점당 신용한도(climit)가 얼마인지를 소수 두번째자리까지 반올림하여 출력하세요.
+#신용점수에 대한 신용한도가 높은 순으로 정렬하여 출력하세요.
+#출력컬럼 : income, climit, rating, limit_per_rating(신용점수에 대한 신용한도)
+
+SELECT income, climit, rating, round(climit / rating ,2) AS limit_per_rating
+FROM credit
+ORDER BY limit_per_rating DESC;
+
+#연습문제 8 : 고객정보 데이터를 결합하여 아래의 고객 정보 포멧으로 출력되도록하고 소득과 예금잔고 데이터와 함께
+#출력되도록 쿼리를 작성하세요.
+#고객정보포멧 : id(age,gender) : 5(71,Male)
+#출력컬럼 : info(고객정보), income, balance
+
+
+# 문제 12 : 아래의 기준에 따라 교육등급을 A, B, C 로 나누고 교육 등급별 평균소득과 평균예금잔고를 출력하세요.
+#출력 결과는 교육등급 알파벳순으로 오름차순으로 정렬하여 출력하세요.
+#출력컬럼 : grade(교육등급), avg_income, avg_balance
+
+SELECT CASE 
+     WHEN education BETWEEN 16 and 20 THEN 'A'
+     WHEN education BETWEEN 11 and 15 THEN 'B'
+     WHEN education BETWEEN 5 and 10 THEN 'C'
+	ELSE ''
+    END AS grade, round(avg(income),2) AS avg_income, round(avg(balance),2) AS avg_balance
+FROM credit
+GROUP BY grade
+ORDER BY grade ASC;
+
+# 문제 13 : 소득등급을 나누고 소득등급별 고객수를 확인합니다.
+#소득(income)이 20이하이면 Low, 70이하이면 Medium, 70 초과하면 High로 소득등급
+#(income_rating)을 나누고, 등급별 전체 고객수(customer_count)을 출력하세요.
+#아래와 같이 High > Medium > Low 순서로 데이터를 정렬하여 출력하세요.
+#출력컬럼 : income_rating, customer_count
+
+SELECT CASE 
+	WHEN income <= 20 THEN 'Low'
+    WHEN income <= 70 THEN 'Medium'
+    ELSE 'High'
+    END AS income_rating, count(id) AS customer_count
+FROM credit
+GROUP BY income_rating
+ORDER BY income_rating ASC;
+
+# 문제 13: 소득등급을 나누고 소득등급별 고객수를 확인합니다.
+#소득(income)이 20이하이면 Low, 70이하이면 Medium, 70 초과하면 High로 소득등급
+#(income_rating)을 나누고, 등급별 전체 고객수(customer_count)을 출력하세요.
+#아래와 같이 High > Medium > Low 순서로 데이터를 정렬하여 출력하세요.
+#출력컬럼 : income_rating, customer_count
+
+USE bda;
+SELECT a.income_rating, count(a.income_rating) AS customer_count
+FROM (SELECT CASE 
+	WHEN income <= 20 THEN 'LOW'
+    WHEN income <= 70 THEN 'MEDIUM'
+    ELSE 'HIGH'
+    END AS income_rating
+    FROM credit) as a
+GROUP BY a.income_rating
+ORDER BY a.income_rating ASC; #high, medium, low 순서대로 출력하는 방법 
+
+SELECT CASE 
+	WHEN income <= 20 THEN 'Low'
+    WHEN income <= 70 THEN 'MEDIUM'
+    ELSE 'HIGH'
+    END AS income_rating, count(*) AS customer_count
+FROM credit
+GROUP BY income_rating
+ORDER BY 
+	CASE
+		WHEN income_rating = 'Low' THEN 1
+        WHEN income_rating = 'MEDIUM' THEN 2
+        ELSE 3
+	END DESC;
+    
+#bda로 새로운 문저 복원하기
+# 문제 14 : 20대 고객수, 전체 고객수, 20대 고객수의 비율을 퍼센트로 출력하세요.
+# 출력컬럼 : age20_count, total_count, rate_20
+SELECT (SELECT count(*) FROM credit WHERE TRUNCATE(age, -1) = 20) AS age20_count,
+(SELECT count(*) FROM credit), (SELECT count(*) FROM credit WHERE TRUNCATE(age, -1) = 20) / (SELECT count(*) FROM credit) * 100 AS rate_20
+FROM DUAL;
+
+#더 괜찮은 방법 
+
+
+# 문제 15 : 은행고객의 연령대별 고객의 비율이 높은 연령대를 확인합니다.
+#은행의 연령대별 고객수와 고객비율을 출력하세요. 고객수의 비율이 높은순으로 정렬하여 출력하세요.
+#출력컬럼 : ages(연령대), customer_count(고객수), credit_rate(전체고객 대비 해당 연령대 고객비율)
+
+SELECT TRUNCATE(age,-1) AS ages, count(*) AS customer_count, count(*) / (SELECT count(*) FROM credit) AS customer_rate
+FROM credit
+GROUP BY TRUNCATE(age,-1)
+ORDER BY credit_rate DESC;
+
+# 문제 16 : 결혼한 고객(married = 'Yes') 중에서 예금잔고(balance)가 전체고객의 평균예금잔고의 50%이상되는
+#고객의 id, income, age, balance를 출력하세요.
+#출력컬럼 : id, income, age, balance
+
+SELECT id, income, age, balance
+FROM credit
+WHERE married = 'Yes' and balance >= (SELECT avg(balance) * 0.5 FROM credit); #값을 하나로 만들고 비교하기 
+
+# 문제 17
+#중위소득에 해당하는 중산층 고객의 목록을 출력하세요.
+#중위소득 기준 : 전체 평균 소득에서 50% 이상, 200% 이하
+#출력컬럼 : id, income, age
+
+SELECT id, income, age
+FROM credit
+WHERE avg(income) BETWEEN 50 AND 200;
+
+
+SELECT id, income, age
+FROM credit
+WHERE income BETWEEN (SELECT avg(income) * 0.5 FROM credit) AND (SELECT avg(income) * 2 FROM credit);
+
+# 문제 18
+#65세를 기준으로 노인과 비노인의 예금잔고를 비교하려고합니다.
+#은행 고객중에서 나이가 65세 이상 고객의 평균 예금잔고와 65세 미만 고객의 평균 예금잔고를 아래와 같이 출력하세요. 소수점 3번째 자리에서 반올림하여 소수점 2번째 자리까지 출력하세요.
+#출력컬럼 : age_category, avg_balance
+
+#1. union 사용
+SELECT 'under_65' AS age_category, ROUND(AVG(balance),2) AS avg_balance
+FROM credit
+WHERE age < 65
+UNION
+SELECT 'upper_65' AS age_category, ROUND(AVG(balance),2) AS avg_balance
+FROM credit
+WHERE age >= 65;
+
+#2. 조건문과 grouping을 사용하는 방법
+SELECT age, IF(age >= 65, 'upper_65','under_65') AS age_category, round(avg(balance),2) AS avg_balance
+FROM credit
+GROUP BY age_category;
+
+#문제 19.
+#65세를 기준으로 노인과 비노인의 예금잔고를 비교하려고합니다.
+#은행 고객중에서 나이가 65세 이상 고객의 평균 예금잔고와 65세 미만 고객의 평균 예금잔고를 아래와 같이 출력하세요. 소수점 3번째 자리에서 반올림하여 소수점 2번째 자리까지 출력하세요.
+#출력컬럼 : under_65, upper_65
+SELECT (
+	SELECT ROUND(AVG(balance), 2)
+	FROM credit
+	WHERE age < 65
+) AS under_65
+,(
+	SELECT ROUND(AVG(balance), 2)
+	FROM credit
+	WHERE age >= 65
+) AS upper_65
+FROM DUAL;
+
+# 추가 문제 : 65세 이하 고객중에서 소득 상위 2명의 고객데이터
+# 65세 미만 고객 중에서 소득 상위 2명의 고객 데이터
+# 4개의 로우로 출력하는데 고객 id, 소득, 예금잔액, 나이를 출력 
+# 묶어서 union으로 넣기 
+SELECT *
+FROM (SELECT id, income, balance, age 
+FROM credit
+WHERE age >= 65
+ORDER BY income DESC
+LIMIT 2) sub1
+UNION
+SELECT *
+FROM (SELECT id, income, balance, age 
+FROM credit
+WHERE age < 65
+ORDER BY income DESC
+LIMIT 2) sub2;
+
+
