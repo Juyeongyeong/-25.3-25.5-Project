@@ -1,0 +1,27 @@
+!pip install pymysql
+!pip install sqlalchemy
+
+import pandas as pd
+from sqlalchemy import create_engine
+
+#1. 데이터 프레임 불러오기
+#df = pd.read
+df = pd.read_csv('credit_default.csv')
+df.head()
+df.info() #1.4mb 정도의 메모리 사용
+
+#2. mysql 연결 정보 설정
+user = 'root'
+password = 'Adgjlkhfs0607!'
+database = 'project'
+
+# 3. SQLAlchemy 엔진 생성
+uri = f'mysql+pymysql://{user}:{password}@localhost:3306/{database}'
+engine = create_engine(uri)
+
+%%time
+# 4. 데이터프레임을 MySQL 테이블로 저장
+# df.to_sql(name='credit', con=engine, if_exists='replace', index=False)
+*
+df.to_sql(name = 'credit', con = engine, index = False, if_exists = 'replace') #이미 테이블이 있으면 대체한다고 생각
+help(df.to_sql)
