@@ -1,0 +1,103 @@
+#유저 세그먼트별 분석
+#전체 유저의 demographic을 알고 싶어요.
+#성 연령별로 유저 숫자를 알려주세요, 참고로 기타 성별은 하나로, 연령은 5세 단위로 적당히 묶어주시고, 숫자가 높은 순서대로 보여주에쇼
+SELECT concat(CASE WHEN length(gender) < 1 THEN '기타' 
+	WHEN gender = 'Others' THEN '기타'
+    WHEN gender = 'M' THEN '남성'
+	WHEN gender = 'F' THEN '여성'
+    END 
+   , "(" , CASE WHEN age <= 15 THEN '15세 이하'
+		WHEN age <= 20 THEN '15-20세'
+        WHEN age <= 25 THEN '21-25세'
+        WHEN age <= 30 THEN '26-30세'
+        WHEN age <= 35 THEN '31-35세'
+        WHEN age <= 40 THEN '36-40세'
+        WHEN age <= 45 THEN '41-45세'
+        WHEN age > 45 THEN '46세 이상'
+		END as ages , ")" )
+	, count(*)
+FROM tbl_customer
+GROUP BY 1
+#위 결과의 성 연령을 성별(연령)(ex. 남성(25-29세 이하))으로 통합해주시고, 각 성 연령이 전체 고객에서 얼마나 차지하는지 분포를 알려주세요.
+SELECT concat(CASE WHEN length(gender) < 1 THEN '기타' 
+	WHEN gender = 'Others' THEN '기타'
+    WHEN gender = 'M' THEN '남성'
+	WHEN gender = 'F' THEN '여성'
+    END 
+   , "(" 
+   , CASE WHEN age <= 15 THEN '15세 이하'
+		WHEN age <= 20 THEN '15-20세'
+        WHEN age <= 25 THEN '21-25세'
+        WHEN age <= 30 THEN '26-30세'
+        WHEN age <= 35 THEN '31-35세'
+        WHEN age <= 40 THEN '36-40세'
+        WHEN age <= 45 THEN '41-45세'
+        WHEN age > 45 THEN '46세 이상'
+		END
+	, ")" ) as segement
+	, round(count(*) / (SELECT count(*) FROM tbl_customer)*100, 2) as per
+FROM tbl_customer
+GROUP BY 1
+ORDER BY 2 DESC;
+
+#2020년 7월의 성별에 따라 구매 건수와 총 revenue를 구해주세요. 남녀 이외의 성별은 하나로 묶어주세요
+select CASE WHEN length(b.gender) < 1 THEN '기타' 
+	WHEN b.gender = 'Others' THEN '기타'
+    WHEN b.gender = 'M' THEN '남성'
+	WHEN b.gender = 'F' THEN '여성'
+    END as gender, count(*) as cnt, sum(price) as revenue
+from tbl_purchase a
+left join tbl_customer b
+on a.customer_id = b.customer_id
+where a.purchased_at between '2020-07-01' and '2020-08-01'
+group by 1
+
+#2020년 7월의 성별/연령대에 따라 구매 건수와 총 revenue를 구해주세요. 남녀 이외의 성별은 하나로 묶어주세요.
+select CASE WHEN length(b.gender) < 1 THEN '기타' 
+	WHEN b.gender = 'Others' THEN '기타'
+    WHEN b.gender = 'M' THEN '남성'
+	WHEN b.gender = 'F' THEN '여성'
+    END as gender,
+    CASE WHEN b.age <= 15 THEN '15세 이하'
+		WHEN b.age <= 20 THEN '15-20세'
+        WHEN b.age <= 25 THEN '21-25세'
+        WHEN b.age <= 30 THEN '26-30세'
+        WHEN b.age <= 35 THEN '31-35세'
+        WHEN b.age <= 40 THEN '36-40세'
+        WHEN b.age <= 45 THEN '41-45세'
+        WHEN b.age > 45 THEN '46세 이상'
+		END as age_group,
+    count(*) as cnt, 
+    sum(price) as revenue
+from tbl_purchase a
+left join tbl_customer b
+on a.customer_id = b.customer_id
+where a.purchased_at between '2020-07-01' and '2020-08-01'
+group by 1,2 
+ORDER by 4 desc;
+
+#매출 관련 추가 분석
+#2020년 7월 일별 매출의 전일 대비 증감폭, 증감률을 구해주세요
+with tbl_rev as 
+(select date_format(purchased_at - interval 9 hour, '%Y-%m-%d') as d_date
+	, sum(price) as revenue
+from tbl_purchase
+where purchased_at between '2020-07-01' and '2020-08-01'
+group by 1)
+
+select *, revenue - lag(revenue) over(order by d_date asc) as '증감폭',
+	round((revenue - lag(revenue) over(order by d_date asc))/lag(revenue) over(order by d_date asc)*100,2) as '증감률'
+from tbl_rev
+
+#일별로 많이 구매한 고객들한테 소장의 선물을 주려고 해요, 7월에 일별로 구매 금액 기준으로 가장 많이 지출한 고객 TOP3를 뽑아주세요.
+select *
+from
+(select date_format(purchased_at - interval 9 hour, '%Y-%m-%d') d_date,
+	customer_id,
+    sum(price),
+    dense_rank() over(partition by date_format(purchased_at - interval 9 hour, '%Y-%m-%d') order by sum(price) desc) as rank_rev
+from tbl_purchase
+where purchased_at between '2020-07-01' and '2020-08-01'
+group by 1,2)foo
+
+where rank_rev < 4;
