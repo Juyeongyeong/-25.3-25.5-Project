@@ -1,0 +1,49 @@
+USE fastcampus;
+#2020년 7월의 총 revenue를 구해주세요(수익)
+SELECT date_format(purchased_at - INTERVAL 9 HOUR,'%Y-%m') AS date, SUM(price)
+FROM tbl_purchase
+GROUP BY date
+HAVING date = '2020-07';
+
+
+#답안, interval해주면 값이 같게 나옴
+SELECT SUM(price)
+FROM tbl_purchase
+WHERE purchased_at BETWEEN '2020-07-01' AND '2020-08-01';
+
+
+#2020년 7월의 MAU를 구해주세요(monthly active user)
+SELECT COUNT(distinct customer_id)
+FROM tbl_visit
+WHERE visited_at BETWEEN '2020-07-01' AND '2020-08-01';
+
+
+#7월에 우리 Active 유저의 구매율은 어떻게 되나요? - 방문한 고객 중에 실제 구매한 고객의 수 
+SELECT count(distinct customer_id) #11174
+FROM tbl_purchase
+WHERE purchased_at BETWEEN '2020-07-01' AND '2020-08-01';
+
+SELECT COUNT(distinct customer_id) #16414
+FROM tbl_visit
+WHERE visited_at BETWEEN '2020-07-01' AND '2020-08-01';
+
+
+#7월에 구매 유저의 월 평균 구매금액은 어떻게 되나요? ARPPU : average revenue per paying user
+SELECT avg(revenue) #구매날짜별 평균, 일별 금액을 빼는 것과 같음
+FROM (SELECT purchased_at, sum(price) as revenue
+	FROM tbl_purchase
+	WHERE purchased_at BETWEEN '2020-07-01' AND '2020-08-01') AS foo 
+    
+    
+SELECT avg(revenue) #구매건별 평균, 금액에서 건수를 빼는 것과 같음
+FROM tbl_purchase
+WHERE purchased_at BETWEEN '2020-07-01' AND '2020-08-01';
+
+
+#7월에 가장 많이 구매한 고객 top 3 
+SELECT customer_id, sum(price) AS revenue
+FROM tbl_purchase
+WHERE purchased_at BETWEEN '2020-07-01' AND '2020-08-01'
+GROUP BY 1
+ORDER BY 2
+LIMIT 5 offset 10; #10건너뛰고 5개
