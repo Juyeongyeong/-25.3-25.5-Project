@@ -1,0 +1,53 @@
+#상관계수 실습
+SELECT income, rating
+FROM credit;
+
+# 가설 : 소득이 높을수록 신용점수가 높다 
+# x = income, y = rating
+# 상관계수 = 공분산 / ROOT(X분산 * y분산)
+
+#공분산 구하기(필요한 것 = 평균, 데이터 개수)  
+SELECT round(sum((income - (SELECT avg(income) FROM credit)) * (rating - (SELECT avg(rating) FROM credit))) / count(*),3) AS covariance
+FROM credit;
+#공분산 수치 : '4304.704'
+
+#ROOT(x분산 * y분산)
+#POW() 제곱
+SELECT round(POW(variance(income) * variance(rating), 0.5)) #제곱
+FROM credit;
+
+#상관계수 #0.79 1에 가까울수록 강한 양의 상관관계를 나타낸다.
+#결론적으로 소득과 신용점수 사이에는 강한 양의 상관관계를 나타낸다.
+#소득으로 신용점수를 예측했을 때 0.79 정도의 예측 정확도를 갖는다.   
+SELECT round(sum((income - (SELECT avg(income) FROM credit)) * (rating - (SELECT avg(rating) FROM credit))) / count(*),3) / round(POW(variance(income) * variance(rating), 0.5))
+FROM credit;
+
+SELECT *
+FROM kospi_usd;
+
+#상관분석
+#가설 환율과 kosqi주가는 음의 상관관계가 있다. 
+#투자전략 환율이 높으면 달러팔고 코스피 사고, 환율이 낮으면 코스피 팔고 달러 사고
+
+#공분산  
+SELECT round(sum((usd - (SELECT avg(usd) FROM kospi_usd)) * (kospi - (SELECT avg(kospi) FROM kospi_usd))) / count(*),3)
+FROM kospi_usd;
+
+SELECT round(POW(variance(usd) * variance(usd), 0.5)) #제곱
+FROM kospi_usd;
+
+#상관관계 : 음의 상관관계가 있으나 큰 상관관계가 있는 것은 아니다. -0.48
+SELECT round(sum((usd - (SELECT avg(usd) FROM kospi_usd)) * (kospi - (SELECT avg(kospi) FROM kospi_usd))) / count(*),3) / round(POW(variance(usd) * variance(kospi), 0.5))
+FROM kospi_usd;
+
+select *
+from
+(select date_format(purchased_at - interval 9 hour, '%Y-%m-%d') d_date,
+	customer_id,
+    sum(price),
+    dense_rank() over(partition by date_format(purchased_at - interval 9 hour, '%Y-%m-%d') order by sum(price) desc) as rank_rev
+from tbl_purchase
+where purchased_at between '2020-07-01' and '2020-08-01'
+group by 1,2)foo
+
+where rank_rev < 4;
