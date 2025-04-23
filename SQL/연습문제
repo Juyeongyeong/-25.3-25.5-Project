@@ -1,0 +1,166 @@
+USE sakila;
+SELECT * FROM customer;
+SELECT * FROM rental;
+
+-- 연습문제 1 
+SELECT a.customer_id, concat(a.first_name, " ",a.last_name), b.rental_date
+FROM customer a, rental b
+WHERE a.customer_id = b.customer_id
+ORDER BY 3;
+
+-- 연습문제 2
+SELECT * FROM store;
+SELECT * FROM payment;
+
+SELECT a.store_id, sum(b.amount) as total_sales
+FROM store a
+JOIN payment b
+ON a.manager_staff_id = b.staff_id
+GROUP BY 1;
+
+-- 연습문제 3
+SELECT a.customer_id, a.first_name, a.last_name, MAX(b.rental_date) as last_rental_date
+FROM customer a, rental b
+WHERE a.customer_id = b.customer_id
+GROUP BY 1,2; #first_name 이나 last_name 중 하나만 해도 같은 결과가 출력된다. 
+
+-- 연습문제 4
+SELECT a.customer_id, concat(a.first_name, " ",a.last_name), SUM(b.amount)
+FROM customer a
+JOIN payment b
+ON a.customer_id = b.customer_id
+GROUP BY 1
+ORDER BY 3 DESC;
+
+-- 연습문제 5
+SELECT * FROM actor;
+SELECT * FROM film_actor;
+SELECT * FROM film;
+
+SELECT a.actor_id, concat(a.first_name, a.last_name), count(*)
+FROM actor a, film_actor fa
+WHERE a.actor_id = fa.actor_id
+GROUP BY 1,2
+ORDER BY 3 DESC
+LIMIT 5;
+
+-- 연습문제 6
+SELECT * FROM inventory;
+SELECT * FROM rental;
+SELECT * FROM film;
+
+SELECT f.film_id, f.title, count(i.inventory_id) AS rental_count
+FROM film f, inventory i, rental r
+WHERE f.film_id = i.film_id and r.inventory_id = i.inventory_id
+GROUP BY 1,2
+ORDER BY 3 DESC;
+
+-- 연습문제 7 rental을 모두 서브쿼리로 묶은 후에 join하는 것이 더 명확함 
+SELECT * FROM customer;
+SELECT * FROM rental;
+
+SELECT a.customer_id, b.email, a.rental_count, a.activity_level
+FROM(SELECT customer_id, count(*) as rental_count, CASE 
+	WHEN count(*) <= 20 THEN 'Inactive'
+    WHEN count(*) <= 30 THEN 'Active'
+    ELSE 'Super Active'
+    END as activity_level
+FROM rental
+GROUP BY 1
+) a
+JOIN customer b
+ON a.customer_id = b.customer_id;
+
+-- 연습문제 8
+SELECT * FROM rental;
+SELECT * FROM inventory;
+SELECT * FROM film;
+
+SELECT *
+FROM(
+SELECT f.film_id, f.title, count(r.rental_id) AS rental_count
+FROM film f, inventory i, rental r
+WHERE f.film_id = i.film_id and r.inventory_id = i.inventory_id
+GROUP BY 1
+ORDER BY 3 DESC
+LIMIT 2
+) sub1
+UNION
+SELECT *
+FROM(
+SELECT f.film_id, f.title, count(r.rental_id) AS rental_count
+FROM film f, inventory i, rental r
+WHERE f.film_id = i.film_id and r.inventory_id = i.inventory_id
+GROUP BY 1,2
+ORDER BY 3 ASC
+LIMIT 2
+) sub2;
+
+-- 연습문제 9
+SELECT * FROM payment;
+-- (1)
+SELECT date_format(payment_date,'%w') as number,
+	date_format(payment_date, '%W') as weekday, sum(amount) as total_sales
+FROM payment
+GROUP BY 1,2
+ORDER BY 1;
+-- (2)
+# SUBSTRING(column, start, limit)
+# 2. FIELD() : 데이터를 입력한 순서대로 숫자로 변환하여 결과 출력
+SELECT DATE_FORMAT(payment_date, '%W') AS weekday
+, SUM(amount) AS total_sales
+FROM payment
+GROUP BY weekday
+ORDER BY FIELD(weekday
+    , 'Sunday', 'Monday', 'Tuesday'
+    , 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+);
+
+# 3. SUB QUERY 사용
+# SUBSTRING(column, start, limit)
+SELECT SUBSTRING(sub.weekday, 3) AS weekday
+	   , sub.total_sales
+FROM (
+SELECT DATE_FORMAT(payment_date, '%w %W') AS weekday
+, SUM(amount) AS total_sales
+FROM payment
+GROUP BY weekday
+ORDER BY weekday ASC
+) sub;
+
+-- 연습문제 10
+SELECT * FROM customer;
+SELECT * FROM store;
+SELECT * FROM staff;
+
+SELECT s.store_id, concat(f.first_name,' ',f.last_name), count(*)
+FROM customer c, store s, staff f
+WHERE s.store_id = f.staff_id and c.store_id = s.store_id
+GROUP BY 1,2
+ORDER BY 1;
+
+-- 연습문제 11
+SELECT rental_id, amount FROM payment;
+SELECT rental_id, inventory_id FROM rental;
+SELECT inventory_id, film_id FROM inventory;
+SELECT film_id, title FROM film;
+SELECT film_id, category_id FROM film_category;
+SELECT category_id, name FROM category;
+
+SELECT c.name, count(*) as total_count, sum(p.amount) as total_sales
+FROM category c
+JOIN film_category fc
+ON c.category_id = fc.category_id
+JOIN inventory i
+ON fc.film_id = i.film_id
+JOIN rental r
+ON i.inventory_id = r.inventory_id
+JOIN payment p
+ON p.rental_id, r.rental_id
+GROUP BY 2
+ORDER 3;
+
+
+
+
+
