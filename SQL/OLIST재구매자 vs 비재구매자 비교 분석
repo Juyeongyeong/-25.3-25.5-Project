@@ -1,0 +1,404 @@
+/*재구매자 vs 비재구매자 비교 분석*/
+USE sql_project;
+
+SELECT * FROM first_order;
+SELECT count(customer_id) FROM orders;
+
+
+SELECT * FROM customers;
+SELECT * FROM orders;
+-- 고객별 주문 기간 (비재구매자 3.2145 / 재구매자 3.3108
+USE sql_project;
+WITH b AS (
+  SELECT 
+    c.customer_unique_id, COUNT(o.order_id) AS order_count
+  FROM customers c
+  JOIN orders o 
+  ON c.customer_id = o.customer_id
+  GROUP BY 1
+  HAVING order_count > 1
+)
+SELECT -- min -1, max 126
+  -- b.customer_unique_id, 
+  avg(DATEDIFF(o.order_delivered_carrier_date, o.order_purchase_timestamp)) as diff1
+  -- DATEDIFF(o.order_estimated_delivery_date, o.order_delivered_carrier_date) as diff2
+FROM b
+JOIN customers c
+  ON b.customer_unique_id = c.customer_unique_id
+JOIN orders o
+  ON c.customer_id = o.customer_id
+WHERE DATEDIFF(o.order_estimated_delivery_date, o.order_delivered_carrier_date) IS NOT NULL;
+
+-- 비재구매자의 배송 지연과 지역 간 관계 중앙값 58일 / 재구매자 54일
+WITH b AS (
+  SELECT 
+    c.customer_unique_id, COUNT(o.order_id) AS order_count
+  FROM customers cㅇ
+  JOIN orders o 
+    ON c.customer_id = o.customer_id
+  GROUP BY 1
+  HAVING order_count > 1
+),
+filtered AS (
+  SELECT 
+    DATEDIFF(o.order_delivered_carrier_date, o.order_purchase_timestamp) AS diff1
+  FROM b
+  JOIN customers c ON b.customer_unique_id = c.customer_unique_id
+  JOIN orders o ON c.customer_id = o.customer_id
+  WHERE DATEDIFF(o.order_estimated_delivery_date, o.order_delivered_carrier_date) IS NOT NULL 
+    AND DATEDIFF(o.order_delivered_carrier_date, o.order_purchase_timestamp) >= 50
+),
+ranked AS (
+  SELECT 
+    diff1,
+    ROW_NUMBER() OVER (ORDER BY diff1) AS rn,
+    COUNT(*) OVER () AS total_count
+  FROM filtered
+)
+SELECT 
+  AVG(diff1) AS median_diff1
+FROM ranked
+WHERE rn IN (FLOOR((total_count + 1) / 2), CEIL((total_count + 1) / 2));
+
+
+
+SELECT * FROM customers;
+
+
+-- 재구매자 - 2997명 (히스토그램 비교, diff1은 실제 받은 날짜 - 구매 날짜 / diff2는 배달 받기로 한 날짜 - 실제 받은 날짜)
+-- diff1 : 실제 배송에 걸린 기간
+-- diff2 : diff < 0 - 지연 / diff > 0 - 지연 x
+WITH b AS (
+  SELECT 
+    c.customer_unique_id, COUNT(o.order_id) AS order_count
+  FROM customers c
+  JOIN orders o 
+  ON c.customer_id = o.customer_id
+  GROUP BY 1
+  HAVING order_count > 1
+)
+SELECT 
+  b.customer_unique_id, 
+  DATEDIFF(o.order_delivered_carrier_date, o.order_purchase_timestamp) as diff1,
+  DATEDIFF(o.order_estimated_delivery_date, o.order_delivered_carrier_date) as diff2
+FROM b
+JOIN customers c
+  ON b.customer_unique_id = c.customer_unique_id
+JOIN orders o
+  ON c.customer_id = o.customer_id
+WHERE DATEDIFF(o.order_estimated_delivery_date, o.order_delivered_carrier_date) IS NOT NULL;
+
+
+-- 상품 카테고리 비교(특정 카테고리에서 재구매율이 높은가?)
+-- 상품 카테고리 줄이
+SELECT * FROM products;
+SELECT * FROM category_name; -- 71개
+
+-- 비재구매자별 카테고리 비교 : 105082
+WITH a as(
+SELECT 
+c.customer_unique_id
+FROM customers c
+JOIN orders o 
+ON c.customer_id = o.customer_id
+GROUP BY c.customer_unique_id
+HAVING count(o.order_id) = 1),
+
+b as(
+SELECT o.customer_id, p.product_category_name
+FROM orders o
+JOIN order_item oi
+ON o.order_id = oi.order_id
+JOIN products p
+ON oi.product_id = p.product_id)
+
+SELECT count(a.customer_unique_id),b.product_category_name
+FROM customers c
+JOIN a
+ON a.customer_unique_id = c.customer_unique_id
+JOIN b
+ON b.customer_id = c.customer_id
+GROUP BY b.product_category_name;
+
+-- 재구매자별 카테고리 비교 : 7568
+WITH a as(
+SELECT 
+c.customer_unique_id
+FROM customers c
+JOIN orders o 
+ON c.customer_id = o.customer_id
+GROUP BY c.customer_unique_id
+HAVING count(o.order_id) = 1),
+
+b as(
+SELECT o.customer_id, p.product_category_name
+FROM orders o
+JOIN order_item oi
+ON o.order_id = oi.order_id
+JOIN products p
+ON oi.product_id = p.product_id)
+
+SELECT count(a.customer_unique_id), cn.product_category_name_english
+FROM customers c
+JOIN a
+ON a.customer_unique_id = c.customer_unique_id
+JOIN b
+ON b.customer_id = c.customer_id
+JOIN category_name cn
+ON cn.product_category_name = b.product_category_name
+GROUP BY 2
+ORDER BY 1 DESC;
+
+SELECT count(*) FROM orders;
+SELECT count(*) FROM order_item;
+SELECT * FROM products;
+SELECT * FROM category_name;
+
+SELECT cn.product_category_name_english,
+	-- round(avg(p.product_name_lenght),2) as name_length,
+	-- round(avg(p.product_description_lenght),2) as descr_length,
+    -- round(avg(p.product_photos_qty),2) as photos
+FROM products p
+JOIN category_name cn
+ON p.product_category_name = cn.product_category_name
+GROUP BY 1;
+
+-- 재구매율 제품
+
+-- bed_bath_table->health_beauty->sports_leisure->furniture_decor-> computers_accessories-> housewares->watches_gifts->telephony->garden_tools->auto
+-- * 추가분석 요인 : 가격 
+
+-- 리뷰 점수 및 내용 (첫 구매 만족도가 높았는가?)
+-- 고객들이 가장 많이 사는 상품 유형은 무엇인가?
+USE sql_project;
+-- bed_bath_table, sports_leisure, furniture_decor, health_beauty #시각화 하기
+SELECT cn.product_category_name_english, count(p.product_id)
+FROM products p
+JOIN category_name cn
+ON p.product_category_name = cn.product_category_name
+GROUP BY cn.product_category_name_english
+ORDER BY 2 DESC;
+
+-----------------------------------
+-- 비,재구매자별 리뷰 점수 및 내용
+-- 재구매자_점수 및 리뷰
+-- 시간별 점수 변화 비교 
+SELECT * FROM order_reviews;
+WITH b AS (
+  SELECT 
+    c.customer_unique_id, 
+    COUNT(o.order_id) AS order_count
+  FROM customers c
+  JOIN orders o 
+    ON c.customer_id = o.customer_id
+  GROUP BY c.customer_unique_id
+  HAVING order_count > 1
+),
+c AS (
+  SELECT 
+    c.customer_unique_id, 
+    ore.review_id,
+    ore.review_score,
+    ore.review_comment_title,
+    ore.review_comment_message,
+    ore.review_creation_date
+  FROM customers c
+  JOIN orders o
+    ON c.customer_id = o.customer_id
+  JOIN order_reviews ore
+    ON ore.order_id = o.order_id
+)
+SELECT 
+  c.customer_unique_id,
+  c.review_score,
+  c.review_comment_message
+FROM b
+JOIN c
+  ON b.customer_unique_id = c.customer_unique_id
+WHERE c.review_score IN (4, 5);
+
+WITH b AS (
+  SELECT 
+    c.customer_unique_id, 
+    COUNT(o.order_id) AS order_count
+  FROM customers c
+  JOIN orders o 
+    ON c.customer_id = o.customer_id
+  GROUP BY c.customer_unique_id
+  HAVING order_count > 1
+),
+c AS (
+  SELECT 
+    c.customer_unique_id, 
+    ore.review_id,
+    ore.review_score,
+    ore.review_comment_title,
+    ore.review_comment_message,
+    ore.review_creation_date
+  FROM customers c
+  JOIN orders o
+    ON c.customer_id = o.customer_id
+  JOIN order_reviews ore
+    ON ore.order_id = o.order_id
+)
+SELECT 
+  c.review_score, count(*)
+FROM b
+JOIN c
+  ON b.customer_unique_id = c.customer_unique_id
+GROUP BY c.review_score
+ORDER BY 2 DESC; 
+
+-- 비재구매자_리뷰 및 점수
+WITH b AS (
+  SELECT 
+    c.customer_unique_id, 
+    COUNT(o.order_id) AS order_count
+  FROM customers c
+  JOIN orders o 
+    ON c.customer_id = o.customer_id
+  GROUP BY c.customer_unique_id
+  HAVING order_count = 1
+),
+c AS (
+  SELECT 
+    c.customer_unique_id, 
+    ore.review_id,
+    ore.review_score,
+    ore.review_comment_title,
+    ore.review_comment_message,
+    ore.review_creation_date
+  FROM customers c
+  JOIN orders o
+    ON c.customer_id = o.customer_id
+  JOIN order_reviews ore
+    ON ore.order_id = o.order_id
+)
+SELECT 
+  c.customer_unique_id,
+  c.review_score,
+  c.review_comment_message
+FROM b
+JOIN c
+  ON b.customer_unique_id = c.customer_unique_id
+WHERE c.review_score IN (1, 2) AND review_comment_message IS NOT NULL;
+
+-- 재구매자수 / 비재구매자 수 지도 시각화
+USE sql_project;
+SELECT * FROM geolocation;
+SELECT count(distinct(geolocation_city)) FROM geolocation; -- 5969
+SELECT count(distinct(geolocation_state)) FROM geolocation; -- 27
+SELECT * FROM customers; 
+
+
+SELECT c.customer_state as geolocation_state, count(c.customer_unique_id) as value
+FROM customers c
+JOIN (
+	SELECT o.customer_id
+    FROM orders o 
+    GROUP BY o.customer_id
+    HAVING count(o.order_id) = 1) one_time
+ON c.customer_id = one_time.customer_id
+GROUP BY c.customer_state;
+
+-- 지도와 join 해주기 : 93099
+WITH a as(
+SELECT customer_unique_id
+FROM customers c
+JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY customer_unique_id
+HAVING COUNT(o.order_id) = 1)
+
+SELECT count(c.customer_unique_id) as value, c.customer_state as geolocation_state
+FROM customers c
+JOIN a 
+ON a.customer_unique_id = c.customer_unique_id
+GROUP BY 2;
+
+-- 6342
+WITH a as(
+SELECT customer_unique_id
+FROM customers c
+JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY customer_unique_id
+HAVING COUNT(o.order_id) > 1)
+
+SELECT count(c.customer_unique_id) as value, c.customer_state as geolocation_state
+FROM customers c
+JOIN a 
+ON a.customer_unique_id = c.customer_unique_id
+GROUP BY 2;
+
+-- 판매자 수
+SELECT seller_state as seller, count(seller_id) as value
+FROM sellers
+GROUP BY seller_state;
+
+-- 각 지역별 평균 배송기간?
+USE sql_project;
+SELECT round(avg(datediff(order_delivered_customer_date, order_approved_at)),2) as avg_diff, c.customer_state as state
+fROM orders o 
+JOIN customers c
+ON c.customer_id = o.customer_id
+WHERE datediff(order_delivered_customer_date, order_approved_at) IS NOT NULL
+GROUP BY 2
+ORDER BY 1 DESC;
+
+-- 소요 기간, 지역별 
+SELECT 
+	o.order_purchase_timestamp,
+	DATEDIFF(o.order_approved_at,o.order_purchase_timestamp) as '결제승인', -- 결제 승인 
+	DATEDIFF(o.order_delivered_customer_date, o.order_approved_at) as '배송기간',
+	DATEDIFF(o.order_estimated_delivery_date, o.order_purchase_timestamp) as '예상배송기간'
+FROM customers c
+JOIN orders o 
+  ON c.customer_id = o.customer_id
+WHERE DATEDIFF(o.order_approved_at,o.order_purchase_timestamp) IS NOT NULL 
+	and DATEDIFF(o.order_delivered_customer_date, o.order_approved_at) IS NOT NULL
+    and DATEDIFF(o.order_estimated_delivery_date, o.order_purchase_timestamp) IS NOT NULL;
+
+-- 비재구매자 기준 1,2점 리뷰 제품군 찾아보기 
+WITH b AS (
+  SELECT 
+    c.customer_unique_id, 
+    COUNT(o.order_id) AS order_count
+  FROM customers c
+  JOIN orders o 
+    ON c.customer_id = o.customer_id
+  GROUP BY c.customer_unique_id
+  HAVING order_count = 1
+),
+c AS (
+  SELECT 
+    c.customer_unique_id,
+    o.order_id,
+    ore.review_id,
+    ore.review_score,
+    ore.review_comment_title,
+    ore.review_comment_message,
+    ore.review_creation_date
+  FROM customers c
+  JOIN orders o
+    ON c.customer_id = o.customer_id
+  JOIN order_reviews ore
+    ON ore.order_id = o.order_id
+)
+SELECT 
+  count(c.customer_unique_id) as product,
+  p.product_category_name
+FROM b
+JOIN c
+  ON b.customer_unique_id = c.customer_unique_id
+JOIN order_item oi
+ON c.order_id = oi.order_id
+JOIN products p
+ON p.product_id = oi.product_id
+WHERE c.review_score IN (1, 2) AND review_comment_message IS NOT NULL
+GROUP BY p.product_category_name
+HAVING p.product_category_name IS NOT NULL
+ORDER BY 1 DESC;
+
+SELECT * FROM orders;
+SELECT * FROM products;
+SELECT * FROM order_reviews;
+SELECT * FROM order_item;
