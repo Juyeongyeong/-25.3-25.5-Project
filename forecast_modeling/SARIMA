@@ -1,0 +1,86 @@
+import pandas as pd
+
+df = pd.read_csv('Personal_Finance_Dataset.csv', encoding = 'utf-8-sig')
+df.head(5)
+#df.info()
+
+#문자열을 datetime 형식으로 변환
+df['Date'] = pd.to_datetime(df['Date'])
+
+#'지출'만 필터링
+expense = df[df['Type'] == 'Expense'].copy()
+
+#월 컬럼 생성
+expense['month'] = expense['Date'].dt.to_period('M')
+
+monthly_expenses = expense.groupby('month')['Amount'].sum()
+print(monthly_expenses)
+
+import matplotlib.pyplot as plt
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from matplotlib import rcParams
+#statsmodels는 시계열 예측용으로 매우 안정적인 라이브러리
+#예산 초과 시 알림, 이메일 발송 등 기능 추가 가능 
+
+rcParams['font.family'] = 'AppleGothic'
+
+#예시 지출 데이터 (6개월) 이상 사용 
+data = {
+    'month' : ['2024-07', '2024-08', '2024-09', '2024-10','2024-11','2024-12'],
+    'expenses' : [27716.08,22933.69,19383.94,22984.21,23565.96,10938.92]
+}
+
+df1 = pd.DataFrame(data)
+df1['month'] = pd.to_datetime(df1['month'])
+df1.set_index('month', inplace = True)
+
+#SARIMA 모델 설정 및 학습 
+#order = (p,d,q), seasonal_order = (P,D,Q,s)
+#예 : 월 단위 계ㄹ성 -> s =12
+model = SARIMAX(df1['expenses'],
+               order = (1,1,1),
+               seasonal_order=(1,1,1,12),
+               enforce_stationarity = False,
+               enforce_invertibility = False)
+model_fit = model.fit()
+
+
+
+#다음 달 (2025-01) 예측
+forecast = model_fit.forecast(steps=1)
+next_month_expense = forecast[0]
+next_month = pd.to_datetime('2025-01')
+
+#예산 설정 
+budget = 25000
+
+#결과 출력 및 경고
+print(f"예측된 다음 달 지출액 : {int(next_month_expense)}원")
+if next_month_expense > budget:
+    print("경고 : 예산을 초과할 것으로 예산됩니다!")
+else:
+    print("예산 범위 내에서 지출될 것으로 예상됩니다.")
+
+#그래프 시각화
+plt.figure(figsize=(10,5))
+plt.plot(df1.index, df1['expenses'], label='실제 지출')
+plt.axhline(budget, color = 'red', linestyle = '--', label = '예산 한도')
+
+#예측값 표시 
+next_month = df1.index[-1] + pd.DateOffset(months = 1)
+plt.scatter([next_month], [next_month_expense], color = 'orange', label = '예측 지출')
+plt.text(next_month, next_month_expense + 10000, f"{int(next_month_expense):,}원",
+         ha = 'center', va = 'bottom', fontsize = 10)
+plt.title('월별 지출 예측 (SARIMA)')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+#잔차(residual) 분석
+#잔차가 정규분포를 따르는가?
+#잔차의 평균이 0에 가까운가?
+#자기상관(ACF)이 없는가? (독립성)
+
+from statsmodels.graphics.tsaplots import plot_acf
+plot_acf(model_fit.resid)
