@@ -1,0 +1,274 @@
+import requests
+from bs4 import BeautifulSoup
+import sqlite3
+import time
+
+# 데이터베이스 연결 및 테이블 생성
+conn = sqlite3.connect("books.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS books (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    link TEXT,
+    subtitle TEXT,
+    edition TEXT,
+    author TEXT,
+    publisher TEXT,
+    pub_date TEXT,
+    discount TEXT,
+    price TEXT,
+    original_price TEXT,
+    point TEXT,
+    rating TEXT,
+    review_count TEXT,
+    summary TEXT,
+    tags TEXT
+)
+""")
+conn.commit()
+
+# 크롤링 파라미터 설정
+disp_no = "001001003031"  # 경제/경영 카테고리
+start_page = 1
+end_page = 5  # 원하는 페이지 범위로 설정
+headers = {"User-Agent": "Mozilla/5.0"}
+
+for page in range(start_page, end_page + 1):
+    print(f"📄 페이지 {page} 수집 중...")
+
+    url = "https://www.yes24.com/product/category/CategoryProductContents"
+    params = {
+        "dispNo": disp_no,
+        "order": "SINDEX_ONLY",
+        "addOptionTp": "0",
+        "page": page,
+        "size": 24,
+        "statGbYn": "N",
+        "viewMode": "",
+        "_options": "",
+        "directDelvYn": "",
+        "usedTp": "0",
+        "elemNo": "0",
+        "elemSeq": "0",
+        "seriesNumber": "0"
+    }
+
+    res = requests.get(url, params=params, headers=headers)
+    soup = BeautifulSoup(res.text, "html.parser")
+    items = soup.select(".item_info")
+
+    if not items:
+        print("❌ 더 이상 데이터가 없습니다.")
+        break
+
+    for item in items:
+        title_tag = item.select_one(".info_name .gd_name")
+        title = title_tag.get_text(strip=True) if title_tag else None
+        link = "https://www.yes24.com" + title_tag['href'] if title_tag else None
+
+        subtitle = item.select_one(".info_name .gd_nameE")
+        edition = item.select_one(".info_name .gd_feature")
+        author_tag = item.select_one(".info_auth a")
+        publisher_tag = item.select_one(".info_pub a")
+        pub_date = item.select_one(".info_date")
+        discount = item.select_one(".txt_sale em")
+        price = item.select_one(".txt_num .yes_b")
+        original_price = item.select_one(".txt_num.dash .yes_m")
+        point = item.select_one(".yPoint")
+        rating = item.select_one(".rating_grade .yes_b")
+        review_count = item.select_one(".rating_rvCount em.txC_blue")
+        summary = item.select_one(".info_read")
+        tags = [tag.get_text(strip=True) for tag in item.select(".info_tag .tag a")]
+
+        # DB에 삽입
+        cursor.execute("""
+        INSERT INTO books (
+            title, link, subtitle, edition, author, publisher, pub_date,
+            discount, price, original_price, point, rating, review_count,
+            summary, tags
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            title,
+            link,
+            subtitle.get_text(strip=True) if subtitle else "",
+            edition.get_text(strip=True) if edition else "",
+            author_tag.get_text(strip=True) if author_tag else "",
+            publisher_tag.get_text(strip=True) if publisher_tag else "",
+            pub_date.get_text(strip=True) if pub_date else "",
+            discount.get_text(strip=True) + "%" if discount else "",
+            price.get_text(strip=True) if price else "",
+            original_price.get_text(strip=True) if original_price else "",
+            point.get_text(strip=True) if point else "",
+            rating.get_text(strip=True) if rating else "",
+            review_count.get_text(strip=True) if review_count else "",
+            summary.get_text(strip=True) if summary else "",
+            ", ".join(tags)
+        ))
+
+    conn.commit()
+    time.sleep(1)  # 서버 부하 방지
+
+# 종료
+conn.close()
+print("✅ 모든 도서 정보를 books.db에 저장 완료")
+
+#====
+# prompt: 수집한 db 파일을 읽어와서 df 변수로 만들고 중복데이터를 제거하고 제목, 설명, 태그를 공백을 기준으로 하나의 변수로 만들어서 TF-IDF 로 벡터화 하고 주요 키워드 200개 추출
+
+import sqlite3
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# 데이터베이스 연결
+conn = sqlite3.connect('books.db')
+df = pd.read_sql_query("SELECT * FROM books", conn)
+conn.close()
+
+# 중복 데이터 제거
+df.drop_duplicates(inplace=True)
+
+# 제목, 설명, 태그를 하나의 열로 합치기
+df['text'] = df['title'].fillna('') + ' ' + df['summary'].fillna('') + ' ' + df['tags'].fillna('')
+
+# TF-IDF 벡터화
+tfidf = TfidfVectorizer()
+tfidf_matrix = tfidf.fit_transform(df['text'])
+
+#===
+# prompt: # 주요 키워드 추출 (상위 200개)
+# feature_names = tfidf.get_feature_names_out()
+# top_keywords = []
+# for i in range(tfidf_matrix.shape[0]):
+#   scores = tfidf_matrix[i].toarray()[0]
+#   sorted_indices = scores.argsort()[::-1][:200]  # 상위 200개 인덱스
+#   keywords = [feature_names[idx] for idx in sorted_indices]
+#   top_keywords.extend(keywords)
+# # 상위 키워드 출력 (중복 제거)
+# print(set(top_keywords))
+# 해당 코드 리팩토링해서 가중치도 함께 출력하게 다시 작성하고 txt 파일로 저장
+
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# 데이터베이스 연결
+conn = sqlite3.connect('books.db')
+df = pd.read_sql_query("SELECT * FROM books", conn)
+conn.close()
+
+# 중복 데이터 제거
+df.drop_duplicates(inplace=True)
+
+# 제목, 설명, 태그를 하나의 열로 합치기
+df['text'] = df['title'].fillna('') + ' ' + df['summary'].fillna('') + ' ' + df['tags'].fillna('')
+
+# TF-IDF 벡터화
+tfidf = TfidfVectorizer()
+tfidf_matrix = tfidf.fit_transform(df['text'])
+
+# 주요 키워드 추출 (상위 200개) 및 가중치 출력
+feature_names = tfidf.get_feature_names_out()
+top_keywords = []
+
+with open('top_keywords_with_weights.txt', 'w', encoding='utf-8') as f:
+    for i in range(tfidf_matrix.shape[0]):
+        scores = tfidf_matrix[i].toarray()[0]
+        sorted_indices = scores.argsort()[::-1][:200]  # 상위 200개 인덱스
+        for idx in sorted_indices:
+            keyword = feature_names[idx]
+            weight = scores[idx]
+            top_keywords.append((keyword, weight))
+            f.write(f"{keyword}\t{weight}\n")
+
+print("✅ 키워드와 가중치 정보가 top_keywords_with_weights.txt 파일에 저장되었습니다.")
+
+#===
+# prompt: 위 데이터에서 유사도를 구하고 랜덤하게 5개의 책 제목을 골라서 해당 책과 가장 유사도가 높은 책 제목 5개씩 출력하고 유사도도 함께 출력할 것
+
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+import random
+
+# 데이터베이스 연결 (기존 코드와 동일)
+conn = sqlite3.connect('books.db')
+df = pd.read_sql_query("SELECT * FROM books", conn)
+conn.close()
+
+# 중복 데이터 제거 (기존 코드와 동일)
+df.drop_duplicates(inplace=True)
+
+# 제목, 설명, 태그를 하나의 열로 합치기 (기존 코드와 동일)
+df['text'] = df['title'].fillna('') + ' ' + df['summary'].fillna('') + ' ' + df['tags'].fillna('')
+
+# TF-IDF 벡터화 (기존 코드와 동일)
+tfidf = TfidfVectorizer()
+tfidf_matrix = tfidf.fit_transform(df['text'])
+
+# 코사인 유사도 계산
+cosine_similarities = cosine_similarity(tfidf_matrix)
+
+# 랜덤하게 5개의 책 제목 선택
+random_book_indices = random.sample(range(len(df)), 5)
+
+for book_index in random_book_indices:
+    # 현재 책 제목
+    book_title = df['title'].iloc[book_index]
+    print(f"책 제목: {book_title}")
+
+    # 현재 책과 다른 책들의 유사도
+    similarities = cosine_similarities[book_index]
+
+    # 유사도가 높은 순으로 정렬 (자기 자신 제외)
+    similar_books_indices = similarities.argsort()[::-1][1:6]  # 상위 5개 추출 (자기 자신 제외)
+
+    # 유사한 책 제목과 유사도 출력
+    for similar_book_index in similar_books_indices:
+        similar_book_title = df['title'].iloc[similar_book_index]
+        similarity_score = similarities[similar_book_index]
+        print(f"  - {similar_book_title} (유사도: {similarity_score:.4f})")
+
+    print("-" * 30)
+
+#===
+# prompt: cosine_similarities 해당 변수를 히트맵으로 시각화
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 히트맵 시각화
+plt.figure(figsize=(10, 8))
+sns.heatmap(cosine_similarities, annot=False, cmap='viridis')
+plt.title('Cosine Similarities Heatmap')
+plt.xlabel('Book Index')
+plt.ylabel('Book Index')
+plt.show()
+
+#===
+pd.Series(cosine_similarities[5]).nlargest(10)
+#===
+book_index = 100
+# 현재 책 제목
+book_title = df['title'].iloc[book_index]
+print(f"책 제목: {book_title}")
+
+# 현재 책과 다른 책들의 유사도
+similarities = cosine_similarities[book_index]
+
+# 유사도가 높은 순으로 정렬 (자기 자신 제외)
+similar_books_indices = similarities.argsort()[::-1][1:6]  # 상위 5개 추출 (자기 자신 제외)
+
+# 유사한 책 제목과 유사도 출력
+for similar_book_index in similar_books_indices:
+    similar_book_title = df['title'].iloc[similar_book_index]
+    similarity_score = similarities[similar_book_index]
+    print(f"  - {similar_book_title} (유사도: {similarity_score:.4f})")
+
+print("-" * 30
+
+#책 제목: 실리콘밸리에서 통하는 파이썬 인터뷰 가이드
+  - 소프트웨어 테스트 전문가(CSTS) 가이드 (유사도: 0.0961)
+  - 모던 소프트웨어 엔지니어링 (유사도: 0.0841)
+  - 제품의 탄생 (유사도: 0.0720)
+  - 이것이 취업을 위한 컴퓨터 과학이다 with CS 기술 면접 (유사도: 0.0664)
+  - 일단 해보라구요? UX (유사도: 0.0662)
