@@ -1,0 +1,35 @@
+##파일이 있다면 df['title'].tolist()
+
+from sentence_transformers import SentenceTransformer
+import pandas as pd
+import numpy as np
+
+# 1. 원시 데이터 불러오기 (샘플 형태로 분리된 제목 리스트로 가정)
+raw_text = """
+이게 되네? 챗GPT 미친 활용법 71제 챗GPT가 2024년 12월에 12일 동안 12가지 신기능으로 싹 바뀌었다!
+비트코인의 시대 “비트코인은 우리 시대의 모두가알아야 할 필수 교양이다!”
+주니어 백엔드 개발자가 반드시 알아야 할 실무 지식
+챗GPT 일타강사의 직장인 업무 만렙 공략집
+조코딩의 AI 비트코인 자동 매매 시스템 만들기
+요즘 우아한 AI 개발
+공여사들의 엑셀 혁명 with 챗GPT
+혼자 공부하는 머신러닝+딥러닝
+멀티패러다임 프로그래밍
+교사를 위한 패들렛 Padlet
+""".strip().split('\n')  # 줄 단위로 텍스트 분리
+
+#raw_text = df['title'].tolist()
+# 2. 임베딩 모델 로드
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# 3. 임베딩 수행
+embeddings = model.encode(raw_text, convert_to_numpy=True)
+
+# 4. 메타데이터 TSV 저장
+metadata_df = pd.DataFrame({'text': raw_text})
+metadata_df.to_csv('metadata.tsv', sep='\t', index=False, header=False)
+
+# 5. 벡터 TSV 저장
+np.savetxt('vectors.tsv', embeddings, delimiter='\t')
+
+print("✅ 'metadata.tsv'와 'vectors.tsv' 파일 저장 완료.")
