@@ -1,0 +1,54 @@
+#적절한 임계치를 설정한 후 두 집단(충성, 이탈) 간 t-test진행 필요
+
+#충성, 잠재, 이탈, 신규
+#0.1, 0.15, 0.2
+충성 = [0.316, 0.296, 0.245, 0.201, 0.178, 0.127, 0.086, 0.078]
+잠재 = [0.166, 0.165, 0.164, 0.160, 0.157, 0.138, 0.106, 0.104]
+이탈 = [0.082, 0.082, 0.082, 0.082, 0.082, 0.081, 0.080, 0.080]
+신규 = [0.116, 0.116, 0.116, 0.116, 0.116, 0.115, 0.115, 0.115]
+
+#딕셔너리  변환
+data = {'행' : [0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45], 
+        '충성' : 충성, '잠재' : 잠재, '이탈' : 이탈, '신규' : 신규}
+df = pd.DataFrame(data)
+print(df)
+
+import matplotlib.font_manager as fm
+
+plt.rcParams['font.family'] = 'AppleGothic'
+import matplotlib.pyplot as plt
+plt.figure(figsize=(10, 6)) # 그래프 크기 설정
+plt.plot(df['행'], df['충성'], label='충성')
+plt.plot(df['행'], df['잠재'], label='잠재')
+plt.plot(df['행'], df['이탈'], label='이탈')
+plt.plot(df['행'], df['신규'], label='신규')
+
+plt.xlabel('행 (Row)') # x축 라벨
+plt.ylabel('값 (Value)') # y축 라벨
+plt.title('데이터 그룹별 추세 (Trend by Data Group)') # 그래프 제목
+plt.legend() # 범례 표시
+plt.grid(True) # 그리드 표시
+plt.show()
+
+
+이탈고객 = list(이탈고객)
+충성고객 = list(충성고객)
+# 임계값을 기준으로 0.3 이상인 개별 연결 중심성 값 추출
+# 이탈 고객: 5명
+# 충성 고객: 10명
+
+#정규성 검정 - 정규성 만족하지 않음
+from scipy import stats
+print(stats.shapiro(이탈고객)) #pvalue=0.01068706300538118
+print(stats.shapiro(충성고객)) #pvalue=1.2610407637835715e-38
+
+#등분산성 검정 - 등분산성 만족 
+print(stats.levene(이탈고객,충성고객)) #pvalue=6.012628024718362e-08
+
+#만위트니 검정 
+from scipy.stats import mannwhitneyu
+stat, p = mannwhitneyu(충성고객, 이탈고객, alternative='two-sided')
+print(f'U={stat}, p-value={p}')
+#충성 고객과 이탈 고객 간 연결 중심성 분포에는 통계적으로 매우 유의미한 차이가 있다.
+# 이 차이는 우연히 발생할 가능성이 사실상 0에 가까우며,
+# 따라서 연결 중심성은 두 그룹을 구분하는 강력한 지표로 해석할 수 있습니다.
