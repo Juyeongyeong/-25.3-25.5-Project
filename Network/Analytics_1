@@ -1,0 +1,73 @@
+def get_corr_df_by_segment(original_df, clustering_num):
+  clustered = original_df[original_df["세그먼트"]==clustering_num]
+  drop = clustered.drop(["Unnamed: 0", "고객ID", "세그먼트"], axis=1)
+  df_transposed = drop.T
+  correlation = df_transposed.corr()
+  # 대각선 위(upper triangle)의 인덱스 가져오기
+  upper_indices = np.triu_indices_from(correlation, k=1)
+
+  # 대각선 위와 대각선을 0으로 설정
+  correlation.values[upper_indices] = 0
+
+  return correlation
+
+def one_hot_encoding_by_threshold(corr_df, threshold=0.2):
+  corr = corr_df > threshold
+  res = corr.astype(int)
+
+  return res
+
+def get_network_info(x):
+  customer_ids = x.index.tolist()
+  # 네트워크 그래프 생성
+  G = nx.from_numpy_array(x.values)
+  G = nx.relabel_nodes(G, dict(enumerate(customer_ids)))
+
+  # 1. 연결 중심성(Degree Centrality)
+  degree_centrality = nx.degree_centrality(G)
+  avg_degree_centrality = np.mean(list(degree_centrality.values()))
+
+  # 2. 밀도(Density)
+  density = nx.density(G)
+
+  # 결과 출력
+  print("개별 연결 중심성:", degree_centrality)
+  print("평균 연결 중심성:", avg_degree_centrality)
+  print("네트워크 밀도:", density)
+
+  return (degree_centrality, avg_degree_centrality, density,G)
+
+def customer_network(original_df, cluster_num, threshold=0.2):
+  corr = get_corr_df_by_segment(original_df, cluster_num)
+  corr_one_hot = one_hot_encoding_by_threshold(corr, threshold)
+  degree_centrality, avg_degree_centrality, density, G = get_network_info(corr_one_hot)
+  # visualize_network(corr_one_hot)
+
+  return (degree_centrality, avg_degree_centrality, density, G)
+
+#임계치 설정 후 '일정 값(수정 가능)' 이상 출력
+def find_top_n_keys_by_value(my_dict):
+    if not my_dict:
+        return []
+    sorted_items = sorted(my_dict.items(), key=lambda item: item[1], reverse=True)
+    top_keys = []
+    for item in sorted_items:
+      if item[1] >= 0.35:
+        top_keys.append(item[0])
+
+    return top_keys
+
+degree_cen,_,_,_ = customer_network(a, 3, 0.30) #(테이블 지정 변수, '충성,잠재,이탈,신규', 임계치)
+max_keys = find_top_n_keys_by_value(degree_cen)
+print(max_keys)
+
+#max_keys에 해당하는 고객이 주문한 제품 딕셔너리
+in_list = max_keys
+b = a[a['Unnamed: 0'].isin(in_list)]
+result = b.apply(lambda row: row[row ==1].index.tolist(), axis =1).to_dict()
+print(result)
+
+#max_keys에 해당하는 고객ID
+name = max_keys
+name = a[a['Unnamed: 0'].isin(name)]['고객ID']
+
