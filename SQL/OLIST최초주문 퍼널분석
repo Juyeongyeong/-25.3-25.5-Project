@@ -1,4 +1,4 @@
-#기본 전제가 이탈률이 많은 데이터이다. 그렇다면 부정적인 요인은 무었인가?
+
 -- Step 1: 고객당 최초 주문 ID 구하기
 CREATE TABLE first_order AS
 WITH first_orders AS (
